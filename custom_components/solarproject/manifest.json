@@ -1,0 +1,12 @@
+{
+  "domain": "solarproject",
+  "name": "solarbox.uk devices",
+  "codeowners": ["@solarproject"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/solarproject",
+  "integration_type": "device",
+  "iot_class": "cloud_push",
+  "requirements": [],
+  "version": "1.0.0"
+}

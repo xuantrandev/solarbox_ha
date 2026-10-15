@@ -7,6 +7,7 @@ from types import MappingProxyType
 import unittest
 from aiohttp import web
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.config_entries import ConfigEntry, ConfigEntries
 from homeassistant import loader
 from homeassistant.components.network import async_get_network
@@ -23,8 +24,8 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
    for payload in [
     {'type':'deviceStatus','deviceId':ID,'status':'online'},
     {'type':'ivtdata','data':{'vbat':52.5,'pdc1':120,'pvtd':2300}},
-    {'type':'bmsData','bmsType':'bms1','data':{'vbat':525,'cur':-109,'p':-572,'vcells':[3279,3280]}},
-    {'type':'bmsData','bmsType':'bms2','data':{'p':125.25}},
+    {'type':'bmsData','bmsType':'bms1','data':{'vbat':525,'cur':-109,'p':-572,'chg':1,'dischg':0,'vcells':[3279,3280]}},
+    {'type':'bmsData','bmsType':'bms2','data':{'p':125.25,'chg':0,'dischg':1}},
    ]:await ws.send_json(payload)
    async for message in ws:requests.append(message.json())
    return ws
@@ -49,7 +50,11 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
      await asyncio.sleep(.02)
     await hass.async_block_till_done()
     states=hass.states.async_all()
-    self.assertEqual({s.domain for s in states},{'sensor','binary_sensor'})
+    self.assertEqual({s.domain for s in states},{'sensor','binary_sensor','switch'})
+    self.assertEqual(len(hass.states.async_all('switch')),6)
+    for slot,charging,discharging in [(1,'on','off'),(2,'off','on'),(3,'unknown','unknown')]:
+     for direction,expected in [('charging',charging),('discharging',discharging)]:
+      self.assertEqual(hass.states.get(f'switch.dg_aabbcc_bms{slot}_{direction}').state,expected)
     for suffix,value in [('bms1_total_voltage',52.5),('bms1_current',-10.9),('bms1_cell_voltage_1',3.279),('ivt_pv1_power',120),('ivt_pv_today_lux',2.3),('bms1_power',-572),('bms1_charging_power',0),('bms1_discharging_power',572),('bms2_charging_power',125.25),('bms2_discharging_power',0)]:
      state=next(s for s in states if s.entity_id.endswith(suffix))
      self.assertEqual(float(state.state),value)
@@ -72,6 +77,21 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
        while tuple(hass.states.get(f'sensor.dg_aabbcc_bms{slot}_{direction}_power').state for direction in ('charging','discharging'))!=tuple(str(float(value)) for value in expected):
         await asyncio.sleep(.01)
       self.assertEqual(float(hass.states.get('sensor.dg_aabbcc_bms2_charging_power').state),125.25)
+    # Reported MOS states can both be on even when there is no power flow.
+    await sockets[-1].send_json({'type':'bmsData','bmsType':'bms3','data':{'chg':1,'dischg':1}})
+    async with asyncio.timeout(5):
+     while any(hass.states.get(f'switch.dg_aabbcc_bms3_{direction}').state!='on' for direction in ('charging','discharging')):
+      await asyncio.sleep(.01)
+    for direction in ('charging','discharging'):
+     entity_id=f'switch.dg_aabbcc_bms3_{direction}'
+     for service in ('turn_on','turn_off','toggle'):
+      with self.assertRaisesRegex(HomeAssistantError,'read-only'):
+       await hass.services.async_call('switch',service,{'entity_id':entity_id},blocking=True)
+      self.assertEqual(hass.states.get(entity_id).state,'on')
+    await sockets[-1].send_json({'type':'bmsData','bmsType':'bms3','data':{'chg':0,'dischg':0}})
+    async with asyncio.timeout(5):
+     while any(hass.states.get(f'switch.dg_aabbcc_bms3_{direction}').state!='off' for direction in ('charging','discharging')):
+      await asyncio.sleep(.01)
     registry=entity_registry.async_get(hass)
     for key,name in {
      'vbat':'Ivt Battery Voltage', 'bcur':'Ivt Battery Current Lux', 'pbat':'Ivt Battery Power Lux',
@@ -88,6 +108,10 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
     cells=[e for e in registry.entities.values() if e.unique_id=='solarproject_dg-aabbcc_bms1_vcells_1']
     self.assertEqual(len(cells),1)
     self.assertFalse(requests)
+    await sockets[-1].send_json({'type':'deviceStatus','deviceId':ID,'status':'offline'})
+    async with asyncio.timeout(5):
+     while hass.states.get('switch.dg_aabbcc_bms1_charging').state!='unavailable':
+      await asyncio.sleep(.01)
     await hass.config_entries.async_unload(entry.entry_id)
    finally:
     await hass.async_stop();await runner.cleanup()

@@ -95,7 +95,8 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
         entities = []
         for module in (number, select, switch):
             await module.async_setup_entry(self.hass, self.entry, entities.extend)
-        self.assertEqual(len(entities), 18)
+        self.assertEqual(len(entities), 24)
+        self.assertEqual(len([e for e in entities if isinstance(e, switch.SolarBmsStateSwitch)]), 6)
         self.assertEqual(len([e for e in entities if isinstance(e, number.SolarInverterNumber)]), 14)
         eod = next(e for e in entities if e._key == 'ctl_discharge_end_soc')
         self.assertEqual((eod.name, eod.native_unit_of_measurement), ('Ivt EOD Voltage', '%'))
@@ -112,7 +113,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
             while self.coord.settings_state['ctl_max_charge_current'] != 50.1:
                 await asyncio.sleep(.01)
         self.coord._process_message(catalog())
-        self.assertEqual(len(entities), 18)  # Duplicate catalog never duplicates entities.
+        self.assertEqual(len(entities), 24)  # Duplicate catalog never duplicates entities.
 
     async def test_rejection_invalid_values_and_timeout(self):
         for key, value in [('ctl_grid_charge', 1), ('ctl_max_charge_current', True),

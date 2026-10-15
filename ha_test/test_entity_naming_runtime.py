@@ -132,6 +132,8 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
         for platform, key, object_id in [
             ("sensor", "bms1_vcells_2", "dg_bms1_cell_voltage_2"),
             ("sensor", "vbat", "dg_ivt_battery_voltage"),
+            ("switch", "bms1_chg", "dg_bms1_charging"),
+            ("switch", "bms3_dischg", "dg_bms3_discharging"),
             ("binary_sensor", "bms1_connected", "dg_bms1_online_status"),
             ("number", "ctl_max_charge_current", "dg_ivt_max_charge_current"),
             ("select", "ctl_work_mode", "dg_ivt_work_mode"),
@@ -157,6 +159,31 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
         await self.setup(entry)
         self.assertEqual(self.registered_id("sensor", "bms1_vcells_2", ID),
                          "sensor.dg_9d8740_bms1_cell_voltage_2")
+
+    async def test_total_pv_power(self):
+        entry = await self.entry()
+        await self.setup(entry)
+        entity_id = "sensor.dg_ivt_pv_power"
+        self.assertEqual(self.registered_id("sensor", "pv_power"), entity_id)
+        state = self.hass.states.get(entity_id)
+        self.assertEqual(float(state.state), 120)
+        self.assertEqual(state.attributes["unit_of_measurement"], "W")
+        self.assertEqual(state.attributes["device_class"], "power")
+        self.assertEqual(state.attributes["state_class"], "measurement")
+
+        coordinator = self.hass.data[DOMAIN][entry.entry_id]
+        for data, expected in [
+            ({"pdc1": "unknown"}, "unknown"),
+            ({"pdc2": 240.125}, "240.125"),
+            ({"pdc1": 120.25, "pdc3": 60.5}, "420.875"),
+            ({"pdc2": 0}, "180.75"),
+            ({"pdc1": 0, "pdc3": 0}, "0.0"),
+        ]:
+            with self.subTest(data=data):
+                coordinator._merge_data(data)
+                coordinator._notify()
+                await self.hass.async_block_till_done()
+                self.assertEqual(self.hass.states.get(entity_id).state, expected)
 
     async def test_existing_configured_prefix_removes_device_id_from_cell_id(self):
         entry = await self.entry(prefix="dg")
@@ -191,6 +218,7 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
             self.seed(entry, "number", "ctl_max_charge_current", "dg_9d8740_ivt_max_charge_current", "Ivt Max Charge Current"),
             self.seed(entry, "select", "ctl_work_mode", "ivt_work_mode", "Ivt Work Mode"),
             self.seed(entry, "switch", "ctl_grid_charge", "dg_9d8740_ivt_grid_charge", "Ivt Grid Charge"),
+            self.seed(entry, "switch", "bms1_chg", "dg_9d8740_bms1_charging", "bms1 charging"),
         ]
         custom = self.seed(entry, "number", "ctl_battery_ah", "my_battery_capacity", "Ivt Battery Capacity")
         self.registry.async_update_entity(custom.entity_id, name="My battery capacity", icon="mdi:heart", aliases={"Capacity"})
@@ -201,6 +229,7 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
             "sensor.dg_bms1_cell_voltage_2", "sensor.dg_ivt_battery_voltage",
             "binary_sensor.dg_bms1_online_status", "number.dg_ivt_max_charge_current",
             "select.dg_ivt_work_mode", "switch.dg_ivt_grid_charge",
+            "switch.dg_bms1_charging",
         ]):
             migrated = self.registry.async_get(target)
             self.assertIsNotNone(migrated)
@@ -215,6 +244,8 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
         await self.setup(entry)
         self.assertEqual(self.registered_id("sensor", "bms1_vcells_2", "new"),
                          "sensor.new_bms1_cell_voltage_2")
+        self.assertEqual(self.registered_id("switch", "bms1_chg", "new"),
+                         "switch.new_bms1_charging")
         self.assertEqual(self.registry.async_get("sensor.new_bms1_cell_voltage_2").id, legacy[0].id)
         self.assertEqual(self.registered_id("number", "ctl_battery_ah", "new"), custom.entity_id)
         saved = self.registry.async_get(custom.entity_id)

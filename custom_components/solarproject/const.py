@@ -69,6 +69,7 @@ INVERTER_FIELDS: dict[str, SensorDef] = {
     "pdc1": SensorDef("Ivt PV1 Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:solar-power"),
     "pdc2": SensorDef("Ivt PV2 Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:solar-power"),
     "pdc3": SensorDef("Ivt PV3 Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:solar-power"),
+    "pv_power": SensorDef("Ivt PV Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:solar-power"),
     "vbat": SensorDef("Ivt Battery Voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT, "mdi:battery"),
     "soc": SensorDef("Ivt Battery SOC", "%", SensorDeviceClass.BATTERY, SensorStateClass.MEASUREMENT, "mdi:battery"),
     "fgr": SensorDef("Ivt Grid Frequency", "Hz", SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "mdi:sine-wave"),

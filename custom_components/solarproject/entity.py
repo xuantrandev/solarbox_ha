@@ -77,6 +77,7 @@ def _known_names() -> dict[str, dict[str, str]]:
         BIN_LUX_SERVER: "Lux Cloud",
         BIN_FIX_LUX_SERVER: "Lux Cloud Fix",
     }
+    switches = {}
     for slot in BMS_SLOTS:
         sensors.update({
             f"bms{slot}_{key}": spec.name.format(n=slot)
@@ -92,7 +93,11 @@ def _known_names() -> dict[str, dict[str, str]]:
             BIN_BMS_CHG.format(n=slot): f"bms{slot} charging",
             BIN_BMS_DISCHG.format(n=slot): f"bms{slot} discharging",
         })
-    return {"sensor": sensors, "binary_sensor": binary}
+        switches.update({
+            BIN_BMS_CHG.format(n=slot): f"bms{slot} charging",
+            BIN_BMS_DISCHG.format(n=slot): f"bms{slot} discharging",
+        })
+    return {"sensor": sensors, "binary_sensor": binary, "switch": switches}
 
 
 def _identity(

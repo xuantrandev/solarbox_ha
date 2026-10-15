@@ -140,7 +140,7 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
 
 
 class SolarSensorEntity(_SolarSensorBase):
-    """Entity for a flat field (inverter live / statistics)."""
+    """Entity for inverter live / statistics fields and total PV power."""
 
     def __init__(
         self,
@@ -163,6 +163,18 @@ class SolarSensorEntity(_SolarSensorBase):
             icon=spec.icon,
             scale=spec.scale,
         )
+
+    @property
+    def native_value(self) -> float | None:
+        if self._key != "pv_power":
+            return super().native_value
+        powers = [
+            value
+            for key in ("pdc1", "pdc2", "pdc3")
+            if isinstance(value := self._coordinator.data.get(key), (int, float))
+            and not isinstance(value, bool)
+        ]
+        return round(float(sum(powers)), 3) if powers else None
 
 
 class BmsScalarSensor(_SolarSensorBase):

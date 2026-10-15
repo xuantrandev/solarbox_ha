@@ -6,11 +6,23 @@ settings over WebSocket: 14 numbers, three selects and one switch. Existing
 inverter/BMS sensors remain available. PV today (`pvtd`) is converted from Wh
 to kWh by dividing by 1000.
 
+`Ivt PV Power` reports total PV power in W by summing the latest numeric
+`pdc1`, `pdc2`, and `pdc3` readings. Missing channels are ignored; the sensor
+stays unknown until a channel reports power. With prefix `dg`, its entity ID
+is `sensor.dg_ivt_pv_power`.
+
 Each BMS slot (1–3) provides charging power and discharging power sensors in W,
 derived from its signed `p` value: positive power is charging and negative power
 is discharging. The inactive direction reports zero; both sensors stay unknown
 until power arrives. With prefix `dg`, their entity IDs include
 `sensor.dg_bms1_charging_power` and `sensor.dg_bms1_discharging_power`.
+
+Each BMS slot also provides read-only switch entities such as
+`switch.dg_bms1_charging` and `switch.dg_bms1_discharging`. They mirror the
+reported `chg`/`dischg` states, independently of power flow, and stay unknown
+until those fields arrive. Home Assistant may display toggles, but turn-on,
+turn-off and toggle requests raise a read-only error without sending commands.
+The existing charging/discharging binary sensors remain available.
 
 Entity names match `solardongle/home_senjkha.yaml` wherever a corresponding
 entity exists, including inherited BMS definitions (for example, `Ivt PV Today

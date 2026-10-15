@@ -80,7 +80,7 @@ class SettingsRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 states = hass.states.async_all()
                 self.assertEqual(len([s for s in states if s.domain == 'number']), 14)
                 self.assertEqual(len([s for s in states if s.domain == 'select']), 3)
-                self.assertEqual(len([s for s in states if s.domain == 'switch']), 1)
+                self.assertEqual(len([s for s in states if s.domain == 'switch']), 7)
                 self.assertEqual(len([e for e in registry.entities.values() if e.unique_id == f'solarproject_{ID}_vbat']), 1)
 
                 def entity_id(key, domain):

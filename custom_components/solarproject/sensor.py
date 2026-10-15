@@ -34,6 +34,7 @@ from .const import (
     SensorDef,
 )
 from .coordinator import SolarProjectCoordinator
+from .entity import SolarEntityNaming, entity_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,10 +84,9 @@ def _device_info(coordinator: SolarProjectCoordinator, entry: ConfigEntry) -> De
     )
 
 
-class _SolarSensorBase(SensorEntity):
+class _SolarSensorBase(SolarEntityNaming, SensorEntity):
     """Base entity bound to the coordinator's latest-state map."""
 
-    _attr_has_entity_name = False
     _attr_should_poll = False
 
     def __init__(
@@ -111,7 +111,7 @@ class _SolarSensorBase(SensorEntity):
         self._attr_state_class = state_class
         self._attr_icon = icon
         self._scale = scale
-        self._attr_unique_id = f"{DOMAIN}_{coordinator.prefix}_{key}"
+        self._attr_unique_id = entity_unique_id(coordinator, "sensor", key)
         self._attr_device_info = _device_info(coordinator, entry)
 
     async def async_added_to_hass(self) -> None:

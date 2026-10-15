@@ -86,7 +86,8 @@ class SolarProjectCoordinator:
         self.server = config[CONF_SERVER]
         self.device_id = config[CONF_DEVICE_ID]
         self.fast_data_interval = int(config.get(CONF_FAST_DATA_INTERVAL) or 0)
-        self.prefix = str(config.get(CONF_SENSOR_PREFIX) or self.device_id)
+        self.prefix = str(config.get(CONF_SENSOR_PREFIX) or "").strip() or self.device_id
+        self.entity_unique_ids: dict[tuple[str, str], str] = {}
 
         # Flat latest-state map: "pdc1" -> value, "bms1_soc" -> value, ...
         self.data: dict[str, Any] = {}

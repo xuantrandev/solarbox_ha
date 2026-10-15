@@ -19,8 +19,9 @@ Add one integration entry per dongle. Reserve the dongle's LAN IP when using a
 local connection.
 
 For an existing manual installation, install through HACS and restart Home
-Assistant. Keep your existing integration entries and sensor prefixes to retain
-entity IDs and history.
+Assistant. Keep your existing integration entries. Entity IDs now use the
+configured sensor prefix (or the device ID when empty); see the integration
+documentation for migration behavior and dashboard/automation reference updates.
 
 ## Manual installation
 

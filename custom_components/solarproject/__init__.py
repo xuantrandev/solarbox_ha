@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import SolarProjectCoordinator
+from .entity import async_migrate_entity_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the SolarProject integration from a config entry."""
     coordinator = SolarProjectCoordinator(hass, dict(entry.data))
+    async_migrate_entity_ids(hass, entry, coordinator)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     await coordinator.async_start()

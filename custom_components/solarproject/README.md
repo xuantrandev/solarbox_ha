@@ -3,14 +3,27 @@
 Connect Home Assistant directly to a `home_senble` dongle or use the existing
 `solardongleweb` monitoring endpoint. Updated local firmware exposes 18 inverter
 settings over WebSocket: 14 numbers, three selects and one switch. Existing
-inverter/BMS sensors, scaling and unique IDs are preserved.
+inverter/BMS sensors and scaling are preserved.
 
 Entity names match `solardongle/home_senjkha.yaml` wherever a corresponding
 entity exists, including inherited BMS definitions. HA uses these complete names
 without prepending the dongle/device name (for example, `Ivt PV Today Lux`,
-`bms1 total voltage`, and `Ivt Work Mode`). Existing entity IDs/history and
-user-assigned names are preserved on reload. Newly created entity IDs follow
-these names.
+`bms1 total voltage`, and `Ivt Work Mode`). Entity IDs use the configured sensor
+prefix followed by the entity name, normalized by Home Assistant. For example,
+device `dg-9d8740` with prefix `dg` creates `sensor.dg_bms1_cell_voltage_2`.
+The prefix applies to sensors, binary sensors, and inverter controls. An empty
+prefix uses the device ID, producing `sensor.dg_9d8740_bms1_cell_voltage_2`.
+Friendly names remain unchanged.
+
+On setup or after a prefix change, recognizable generated IDs are migrated in
+place, including older IDs with the device name and IDs without a prefix.
+Existing registry records, custom entity IDs, custom names and entity settings
+are preserved; prefix-based unique IDs are updated in place. Ambiguous IDs are
+left unchanged. Occupied migration targets are skipped and logged. New entities
+use Home Assistant's usual numeric suffix when their requested entity ID is busy.
+After migration, update dashboard and automation references that use renamed
+entity IDs. Renaming registry records does not rewrite those references or
+guarantee that recorder history under an old entity ID is moved.
 
 ## Configure
 
@@ -25,8 +38,8 @@ Enter the existing Device ID (`dg-xxxxxx`) and Server URL:
 - Cloud monitoring: the existing server URL, such as `https://ivbms.solarbox.uk`.
 
 HA connects to `/ws/<deviceId>`. Reserve the dongle's LAN IP. Add one integration
-entry per dongle; retain the existing sensor prefix to preserve entity IDs and
-history. Selection is manual, with no automatic cloud fallback. Local WS has no
+entry per dongle and choose distinct prefixes for different dongles. Selection
+is manual, with no automatic cloud fallback. Local WS has no
 authentication and supports two clients; use it on a trusted LAN.
 
 Both the updated firmware and updated integration are needed for controls.
@@ -83,13 +96,17 @@ docker run --rm --entrypoint python -v "$PWD:/work:ro" \
   ghcr.io/home-assistant/home-assistant:stable /work/ha_test/test_inverter_settings.py
 docker run --rm --entrypoint python -v "$PWD:/work:ro" \
   ghcr.io/home-assistant/home-assistant:stable /work/ha_test/test_inverter_settings_runtime.py
+docker run --rm --entrypoint python -v "$PWD:/work:ro" \
+  ghcr.io/home-assistant/home-assistant:stable /work/ha_test/test_entity_naming_runtime.py
 ```
 
 The settings fixture mirrors the firmware-generated catalog; the firmware host
 test checks it against actual code generation when both repositories are present.
 Tests cover all three control platforms, actual HA service calls, readback-only
 state, errors/timeouts, concurrent request correlation, fresh-state requirements,
-reloads and reconnects without replay. Legacy tests cover scaling and dynamic
+reloads and reconnects without replay. Naming tests cover configured/default
+prefixes, registry migration, custom IDs/names, collisions and prefix changes.
+Legacy tests cover scaling and dynamic
 BMS cells. Real TCP/BLE readback, ESP32 heartbeat/Wi-Fi recovery, simultaneous
 clients and broker-outage operation require hardware checks. Flashing and
 production deployment are separate steps.

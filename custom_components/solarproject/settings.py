@@ -4,7 +4,7 @@ from __future__ import annotations
 from homeassistant.helpers.entity import Entity, EntityCategory
 
 from . import get_coordinator
-from .const import DOMAIN
+from .entity import SolarEntityNaming, entity_unique_id
 from .sensor import _device_info
 
 
@@ -27,9 +27,8 @@ def setup_controls(hass, entry, async_add_entities, platform, entity_class):
     discover()
 
 
-class SolarSettingEntity(Entity):
+class SolarSettingEntity(SolarEntityNaming, Entity):
     """A control whose state is exclusively inverter readback."""
-    _attr_has_entity_name = False
     _attr_should_poll = False
     _attr_entity_category = EntityCategory.CONFIG
 
@@ -37,7 +36,7 @@ class SolarSettingEntity(Entity):
         self._coordinator = coordinator
         self._key = key
         self._platform = self.spec["platform"]
-        self._attr_unique_id = f"{DOMAIN}_{coordinator.prefix}_{key}"
+        self._attr_unique_id = entity_unique_id(coordinator, self._platform, key)
         self._attr_device_info = _device_info(coordinator, entry)
 
     @property

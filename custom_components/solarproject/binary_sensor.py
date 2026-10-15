@@ -23,10 +23,9 @@ from .const import (
     BIN_LUX_SERVER,
     BIN_ONLINE,
     BMS_SLOTS,
-    CONF_DEVICE_ID,
-    DOMAIN,
 )
 from .coordinator import SolarProjectCoordinator
+from .entity import SolarEntityNaming, entity_unique_id
 from .sensor import _device_info
 
 
@@ -73,10 +72,9 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class SolarBinarySensor(BinarySensorEntity):
+class SolarBinarySensor(SolarEntityNaming, BinarySensorEntity):
     """Binary sensor backed by a key in the coordinator state map."""
 
-    _attr_has_entity_name = False
     _attr_should_poll = False
 
     def __init__(
@@ -92,7 +90,7 @@ class SolarBinarySensor(BinarySensorEntity):
         self._key = key
         self._attr_name = name
         self._attr_device_class = device_class
-        self._attr_unique_id = f"{DOMAIN}_{coordinator.prefix}_{key}"
+        self._attr_unique_id = entity_unique_id(coordinator, "binary_sensor", key)
         self._attr_device_info = _device_info(coordinator, entry)
         self._attr_icon = "mdi:power-plug" if device_class else None
 

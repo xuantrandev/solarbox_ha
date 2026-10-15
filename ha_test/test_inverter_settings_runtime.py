@@ -88,12 +88,12 @@ class SettingsRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 for spec in catalog()['settings']:
                     registered_id = entity_id(spec['key'], spec['platform'])
                     self.assertEqual(hass.states.get(registered_id).attributes['friendly_name'], spec['name'])
-                self.assertEqual(entity_id('ctl_work_mode', 'select'), 'select.ivt_work_mode')
+                self.assertEqual(entity_id('ctl_work_mode', 'select'), 'select.dg_aabbcc_ivt_work_mode')
                 current = entity_id('ctl_max_charge_current', 'number')
                 mode = entity_id('ctl_work_mode', 'select')
                 grid = entity_id('ctl_grid_charge', 'switch')
                 # Model an existing entity ID from before the naming change.
-                existing_id = 'number.dg_aabbcc_ivt_max_charge_current'
+                existing_id = 'number.my_charge_current'
                 registry.async_update_entity(current, new_entity_id=existing_id)
                 current = existing_id
                 custom = entity_id('ctl_battery_ah', 'number')

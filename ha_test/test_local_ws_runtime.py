@@ -60,7 +60,7 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
      domain='binary_sensor' if key=='bms1_connected' else 'sensor'
      registered_id=registry.async_get_entity_id(domain,'solarproject',f'solarproject_{ID}_{key}')
      self.assertEqual(hass.states.get(registered_id).attributes['friendly_name'],name)
-    self.assertEqual(registry.async_get_entity_id('sensor','solarproject',f'solarproject_{ID}_vbat'),'sensor.ivt_battery_voltage')
+    self.assertEqual(registry.async_get_entity_id('sensor','solarproject',f'solarproject_{ID}_vbat'),'sensor.dg_aabbcc_ivt_battery_voltage')
     cells=[e for e in registry.entities.values() if e.unique_id=='solarproject_dg-aabbcc_bms1_vcells_1']
     self.assertEqual(len(cells),1)
     self.assertFalse(requests)

@@ -156,6 +156,24 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.registered_id("sensor", "bms1_vcells_2", ID),
                          "sensor.dg_9d8740_bms1_cell_voltage_2")
 
+    async def test_existing_configured_prefix_removes_device_id_from_cell_id(self):
+        entry = await self.entry(prefix="dg")
+        legacy = self.seed(
+            entry, "sensor", "bms1_vcells_1", "dg_9d8740_bms1_cell_voltage_1",
+            "bms1 cell voltage 1", prefix="dg", has_entity_name=True,
+        )
+        await self.setup(entry)
+        target = "sensor.dg_bms1_cell_voltage_1"
+        self.assertEqual(self.registered_id("sensor", "bms1_vcells_1"), target)
+        self.assertEqual(self.registry.async_get(target).id, legacy.id)
+        self.assertIsNone(self.registry.async_get(legacy.entity_id))
+        self.assertEqual(float(self.hass.states.get(target).state), 3.279)
+        count = len(self.registry.entities)
+        await self.hass.config_entries.async_reload(entry.entry_id)
+        await self.ready()
+        self.assertEqual(self.registered_id("sensor", "bms1_vcells_1"), target)
+        self.assertEqual(len(self.registry.entities), count)
+
     async def test_prefix_is_slugified(self):
         entry = await self.entry(prefix="  My DG!  ")
         await self.setup(entry)

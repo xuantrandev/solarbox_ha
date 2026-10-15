@@ -54,7 +54,7 @@ async def async_setup_entry(
         entities.append(
             SolarBinarySensor(
                 coordinator, entry, BIN_BMS_CONNECTED.format(n=slot),
-                f"bms{slot} enable bluetooth connection",
+                f"bms{slot} online status",
                 device_class=BinarySensorDeviceClass.CONNECTIVITY,
             )
         )
@@ -76,7 +76,7 @@ async def async_setup_entry(
 class SolarBinarySensor(BinarySensorEntity):
     """Binary sensor backed by a key in the coordinator state map."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
     _attr_should_poll = False
 
     def __init__(
@@ -104,6 +104,10 @@ class SolarBinarySensor(BinarySensorEntity):
     async def async_will_remove_from_hass(self) -> None:
         self._coordinator.async_remove_listener(self._handle_update)
         await super().async_will_remove_from_hass()
+
+    @property
+    def available(self):
+        return self._key == BIN_ONLINE or self._coordinator.online
 
     def _handle_update(self) -> None:
         self.async_write_ha_state()

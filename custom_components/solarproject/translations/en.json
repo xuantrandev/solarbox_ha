@@ -5,7 +5,7 @@
         "title": "solarbox.uk devices",
         "description": "Connect Home Assistant to a solardongleweb server. Enter the server URL and the device ID of the dongle (e.g. {device_id}). All inverter, BMS and status entities will be created automatically.",
         "data": {
-          "server": "Server URL (e.g. https://ivbms.solarbox.uk)",
+          "server": "Server URL",
           "device_id": "Device ID",
           "name": "Device name",
           "sensor_prefix": "Sensor prefix (optional)"

@@ -64,7 +64,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
     async def add_cells(slot: str, indices: list[int]) -> None:
-        await async_add_entities(
+        async_add_entities(
             [BmsCellSensor(coordinator, slot, i, entry) for i in indices]
         )
 
@@ -86,7 +86,7 @@ def _device_info(coordinator: SolarProjectCoordinator, entry: ConfigEntry) -> De
 class _SolarSensorBase(SensorEntity):
     """Base entity bound to the coordinator's latest-state map."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
     _attr_should_poll = False
 
     def __init__(
@@ -122,6 +122,10 @@ class _SolarSensorBase(SensorEntity):
     async def async_will_remove_from_hass(self) -> None:
         self._coordinator.async_remove_listener(self._handle_update)
         await super().async_will_remove_from_hass()
+
+    @property
+    def available(self):
+        return self._coordinator.online
 
     def _handle_update(self) -> None:
         self.async_write_ha_state()

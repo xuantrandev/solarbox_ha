@@ -23,7 +23,7 @@ DEFAULT_FAST_DATA_INTERVAL = 5  # seconds
 
 DEVICE_ID_REGEX = re.compile(r"^dg-[a-zA-Z0-9]{6}$")
 
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS = ["sensor", "binary_sensor", "number", "select", "switch"]
 
 # WebSocket reconnect backoff (seconds)
 WS_RECONNECT_MIN = 10
@@ -61,8 +61,7 @@ class SensorDef(NamedTuple):
 
 
 # ── Inverter live data (data.live) ────────────────────────────────────────────
-# Sensor names follow the dongle HA variant (solardongle/release_luxbleha.yaml
-# + platform/base_luxha.yaml): "Ivt PV1 Voltage", "Ivt Battery SOC", ...
+# Sensor names follow solardongle/home_senjkha.yaml and its included definitions.
 INVERTER_FIELDS: dict[str, SensorDef] = {
     "vdc1": SensorDef("Ivt PV1 Voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT, "mdi:solar-power"),
     "vdc2": SensorDef("Ivt PV2 Voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT, "mdi:solar-power"),
@@ -84,24 +83,24 @@ INVERTER_FIELDS: dict[str, SensorDef] = {
     "fgr1": SensorDef("Ivt Fgrid1 (3 pha)", "Hz", SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "mdi:sine-wave"),
     "fgr2": SensorDef("Ivt Fgrid2 (3 pha)", "Hz", SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "mdi:sine-wave"),
     "fgr3": SensorDef("Ivt Fgrid3 (3 pha)", "Hz", SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "mdi:sine-wave"),
-    "pbat": SensorDef("Ivt Battery Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:battery"),
-    "bcur": SensorDef("Ivt Battery Current", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, "mdi:battery"),
+    "pbat": SensorDef("Ivt Battery Power Lux", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:battery"),
+    "bcur": SensorDef("Ivt Battery Current Lux", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, "mdi:battery"),
     "pl": SensorDef("Ivt Load Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
-    "pl1": SensorDef("Ivt Pload1 (3 pha)", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
+    "pl1": SensorDef("Ivt Load L1 Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
     "pl2": SensorDef("Ivt Pload2 (3 pha)", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
     "pl3": SensorDef("Ivt Pload3 (3 pha)", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
     "po": SensorDef("Ivt Inverter Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:power"),
-    "eex": SensorDef("Ivt Grid Export Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, "mdi:transmission-tower"),
-    "pvtd": SensorDef("Ivt PV Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, "mdi:solar-power"),
-    "ltd": SensorDef("Ivt Load Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
-    "ech": SensorDef("Ivt Battery Charge Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, "mdi:battery-charging"),
-    "edch": SensorDef("Ivt Battery Discharge Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, "mdi:battery-minus"),
-    "eim": SensorDef("Ivt Grid Import Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, "mdi:transmission-tower"),
+    "eex": SensorDef("Ivt Grid Export Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower"),
+    "pvtd": SensorDef("Ivt PV Today Lux", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power"),
+    "ltd": SensorDef("Ivt Load Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"),
+    "ech": SensorDef("Ivt Battery Charge Today Lux", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:battery-charging"),
+    "edch": SensorDef("Ivt Battery Discharge Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:battery-minus"),
+    "eim": SensorDef("Ivt Grid Import Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower"),
 }
 
 # ── Inverter lifetime statistics (data.statistic) ─────────────────────────────
 STATISTIC_FIELDS: dict[str, SensorDef] = {
-    "pvall": SensorDef("Ivt PV Total", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power"),
+    "pvall": SensorDef("Ivt PV Total Lux", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power"),
     "lall": SensorDef("Ivt Load Total", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"),
     "imall": SensorDef("Ivt Grid Import Total", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower"),
     "chgall": SensorDef("Ivt Battery Charge Total", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:battery-charging"),
@@ -120,7 +119,7 @@ WIFI_SIGNAL_DEF = SensorDef(
 )
 
 # ── BMS scalar fields (per slot; key is the raw JSON key inside bmsN) ────────
-# Names follow the dongle HA variant (release_luxbleha.yaml): "bms1 total
+# Names follow home_senjkha.yaml and release_senjkha.yaml: "bms1 total
 # voltage", "bms1 state of charge", "bms1 temperature sensor 1", ...
 BMS_FIELDS: dict[str, SensorDef] = {
     "soc": SensorDef("bms{n} state of charge", "%", SensorDeviceClass.BATTERY, SensorStateClass.MEASUREMENT, "mdi:battery"),

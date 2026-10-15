@@ -13,12 +13,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
+from uuid import uuid4
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import aiohttp
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
@@ -41,7 +44,10 @@ from .const import (
     WS_RECONNECT_MIN,
 )
 
+from .settings_protocol import parse_catalog, valid_value
+
 _LOGGER = logging.getLogger(__name__)
+SETTING_ACCEPTANCE_TIMEOUT = 10
 
 CellAdder = Callable[[str, list[int]], Awaitable[None]]
 
@@ -85,6 +91,11 @@ class SolarProjectCoordinator:
         # Flat latest-state map: "pdc1" -> value, "bms1_soc" -> value, ...
         self.data: dict[str, Any] = {}
         self.online = False
+        self.settings_catalog: dict[str, dict[str, Any]] = {}
+        self.settings_state: dict[str, Any] = {}
+        self.settings_available = False
+        self._settings_advertised = False
+        self._setting_requests: dict[str, asyncio.Future] = {}
 
         self._listeners: set[Callable[[], None]] = set()
         self._cell_adder: CellAdder | None = None
@@ -97,13 +108,12 @@ class SolarProjectCoordinator:
     async def async_start(self) -> None:
         """Start the WebSocket worker task."""
         self._close_event.clear()
-        self._task = self.hass.async_create_task(
-            self._run(), name=f"solarproject-ws-{self.device_id}"
-        )
+        self._task = self._background_task(self._run(), f"solarproject-ws-{self.device_id}")
 
     async def async_stop(self) -> None:
         """Stop the WebSocket worker task and close the connection."""
         self._close_event.set()
+        self._reset_settings()
         if self._ws and not self._ws.closed:
             await self._ws.close()
         if self._task:
@@ -181,10 +191,11 @@ class SolarProjectCoordinator:
             url, heartbeat=30, max_msg_size=1024 * 1024
         ) as ws:
             self._ws = ws
+            self._reset_settings()
             self._set_online(False)
             fastdata_task = None
             if self.fast_data_interval >= 5:
-                fastdata_task = self.hass.async_create_task(self._fastdata_loop(ws))
+                fastdata_task = self._background_task(self._fastdata_loop(ws), f"solarproject-refresh-{self.device_id}")
             try:
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
@@ -203,6 +214,8 @@ class SolarProjectCoordinator:
                         break
             finally:
                 self._ws = None
+                self._reset_settings()
+                self._set_online(False)
                 if fastdata_task:
                     fastdata_task.cancel()
                     try:
@@ -235,8 +248,101 @@ class SolarProjectCoordinator:
                 )
                 return
 
+    def _reset_settings(self) -> None:
+        """A new connection must advertise controls and supply fresh readback."""
+        self._settings_advertised = False
+        self.settings_available = False
+        self.settings_state.clear()
+        for future in self._setting_requests.values():
+            if not future.done():
+                future.set_exception(HomeAssistantError("Inverter settings connection closed"))
+        self._notify()
+
+    async def async_write_setting(self, key: str, value: Any) -> None:
+        """Wait only for firmware acceptance; never change the readback state here."""
+        spec = self.settings_catalog.get(key)
+        ws = self._ws
+        if (not self._settings_advertised or not self.online or not self.settings_available
+                or key not in self.settings_state or ws is None or ws.closed):
+            raise HomeAssistantError("Inverter settings are unavailable")
+        if spec is None or not valid_value(spec, value):
+            raise HomeAssistantError(f"Invalid value for {key}")
+        if len(self._setting_requests) >= 8:
+            raise HomeAssistantError("Inverter settings are busy")
+        request_id = uuid4().hex
+        future = asyncio.get_running_loop().create_future()
+        self._setting_requests[request_id] = future
+        try:
+            async with asyncio.timeout(SETTING_ACCEPTANCE_TIMEOUT):
+                await ws.send_json({"type": "writeInverterSetting", "deviceId": self.device_id,
+                                    "requestId": request_id, "key": key, "value": value})
+                await future
+        except asyncio.TimeoutError as err:
+            raise HomeAssistantError("Timed out waiting for inverter setting acceptance") from err
+        except HomeAssistantError:
+            raise
+        except (aiohttp.ClientError, ConnectionError, RuntimeError) as err:
+            raise HomeAssistantError("Could not send inverter setting") from err
+        finally:
+            self._setting_requests.pop(request_id, None)
+            if not future.done():
+                future.cancel()
+            elif not future.cancelled():
+                future.exception()  # Also consume disconnect errors if send_json itself failed.
+
+    def _process_settings_message(self, payload: dict[str, Any]) -> None:
+        if payload.get("deviceId") != self.device_id:
+            return
+        msg_type = payload["type"]
+        if msg_type == "inverterSettingResult":
+            request_id = payload.get("requestId")
+            if not isinstance(request_id, str):
+                return
+            future = self._setting_requests.get(request_id)
+            if future is not None and not future.done():
+                if payload.get("accepted") is True:
+                    future.set_result(None)
+                else:
+                    future.set_exception(HomeAssistantError(
+                        f"Inverter setting rejected: {payload.get('error', 'unknown_error')}"))
+            return
+        if type(payload.get("version")) is not int or payload["version"] != 1:
+            self._reset_settings()
+            return
+        if msg_type == "inverterSettingsCatalog":
+            catalog = parse_catalog(payload.get("settings"))
+            if catalog is None:
+                self._reset_settings()
+                return
+            self.settings_catalog = catalog
+            self._settings_advertised = True
+            self.settings_state.clear()
+            self.settings_available = False
+        elif msg_type == "inverterSettingsState" and self._settings_advertised:
+            values = payload.get("values")
+            if not isinstance(values, dict):
+                return
+            self.settings_available = payload.get("available") is True
+            # Readback may be off the UI step: preserve the actual inverter value.
+            self.settings_state = {}
+            for key, value in values.items():
+                spec = self.settings_catalog.get(key)
+                if spec is None or value is None:
+                    continue
+                if spec["platform"] == "number":
+                    valid = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+                else:
+                    valid = valid_value(spec, value)
+                if valid:
+                    self.settings_state[key] = value
+            if not self.settings_available:
+                self.settings_state.clear()
+        self._notify()
+
     # ── state helpers ─────────────────────────────────────────────────────────
     def _set_online(self, online: bool) -> None:
+        if not online and self.settings_available:
+            self._reset_settings()
         if self.online != online:
             self.online = online
             self._notify()
@@ -246,6 +352,9 @@ class SolarProjectCoordinator:
         if not isinstance(payload, dict):
             return
         msg_type = payload.get("type")
+        if msg_type in ("inverterSettingsCatalog", "inverterSettingsState", "inverterSettingResult"):
+            self._process_settings_message(payload)
+            return
 
         if msg_type is None and isinstance(payload.get("data"), dict):
             # Initial cached-state snapshot pushed on connect (no "type").
@@ -347,3 +456,8 @@ class SolarProjectCoordinator:
                 self.data[f"{slot}_mac"] = value
             elif isinstance(value, (int, float)) and not isinstance(value, bool):
                 self.data[f"{slot}_{key}"] = value
+
+    def _background_task(self, coroutine, name):
+        if hasattr(self.hass, 'async_create_background_task'):
+            return self.hass.async_create_background_task(coroutine, name)
+        return self.hass.async_create_task(coroutine, name=name)

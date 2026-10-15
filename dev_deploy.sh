@@ -1,0 +1,1 @@
+cp -R custom_components/solarproject data/ha1/custom_components/

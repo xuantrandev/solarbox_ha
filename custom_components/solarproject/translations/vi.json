@@ -5,7 +5,7 @@
         "title": "solarbox.uk devices",
         "description": "Kết nối Home Assistant với máy chủ solardongleweb. Nhập URL máy chủ và mã thiết bị của dongle (ví dụ {device_id}). Tất cả các entity của inverter, BMS và trạng thái sẽ được tạo tự động.",
         "data": {
-          "server": "URL máy chủ (ví dụ https://ivbms.solarbox.uk)",
+          "server": "URL máy chủ",
           "device_id": "Mã thiết bị",
           "name": "Tên thiết bị",
           "sensor_prefix": "Tiền tố cảm biến (tùy chọn)"

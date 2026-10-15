@@ -1,12 +1,15 @@
 {
   "domain": "solarproject",
   "name": "solarbox.uk devices",
-  "codeowners": ["@solarproject"],
+  "codeowners": [
+    "@xuantrandev"
+  ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/solarproject",
+  "documentation": "https://github.com/xuantrandev/solarbox_ha",
   "integration_type": "device",
   "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/xuantrandev/solarbox_ha/issues",
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.1.1"
 }

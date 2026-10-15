@@ -1,0 +1,186 @@
+[
+  {
+    "key": "ctl_work_mode",
+    "name": "Ivt Work Mode",
+    "icon": "mdi:cog",
+    "platform": "select",
+    "options": [
+      "Self Used",
+      "Feed-in Priority",
+      "Backup"
+    ]
+  },
+  {
+    "key": "ctl_grid_charge",
+    "name": "Ivt Grid Charge",
+    "icon": "mdi:transmission-tower-export",
+    "platform": "switch"
+  },
+  {
+    "key": "ctl_max_charge_power",
+    "name": "Ivt Max Charge Power",
+    "icon": "mdi:battery-charging",
+    "platform": "number",
+    "unit": "W",
+    "min": 0,
+    "max": 12000,
+    "step": 100
+  },
+  {
+    "key": "ctl_charge_end_soc",
+    "name": "Ivt Charge End SOC",
+    "icon": "mdi:battery-charging",
+    "platform": "number",
+    "unit": "%",
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "ctl_max_discharge_power",
+    "name": "Ivt Max Discharge Power",
+    "icon": "mdi:battery-minus",
+    "platform": "number",
+    "unit": "W",
+    "min": 0,
+    "max": 12000,
+    "step": 100
+  },
+  {
+    "key": "ctl_discharge_end_soc",
+    "name": "Ivt EOD Voltage",
+    "icon": "mdi:battery-minus",
+    "platform": "number",
+    "unit": "%",
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "ctl_max_grid_charge_power",
+    "name": "Ivt Max Grid Charge Power",
+    "icon": "mdi:transmission-tower-export",
+    "platform": "number",
+    "unit": "W",
+    "min": 0,
+    "max": 12000,
+    "step": 100
+  },
+  {
+    "key": "ctl_grid_charge_end_soc",
+    "name": "Ivt Grid Charge End SOC",
+    "icon": "mdi:battery-charging",
+    "platform": "number",
+    "unit": "%",
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "ctl_battery_ah",
+    "name": "Ivt Battery Capacity",
+    "icon": "mdi:battery",
+    "platform": "number",
+    "unit": "Ah",
+    "min": 0,
+    "max": 9999,
+    "step": 1
+  },
+  {
+    "key": "ctl_stop_discharge_voltage",
+    "name": "Ivt Stop Discharge Voltage off grid",
+    "icon": "mdi:battery-minus",
+    "platform": "number",
+    "unit": "V",
+    "min": 0.0,
+    "max": 60.0,
+    "step": 0.1
+  },
+  {
+    "key": "ctl_stop_charge_voltage",
+    "name": "Ivt Stop Charge Voltage",
+    "icon": "mdi:battery-plus",
+    "platform": "number",
+    "unit": "V",
+    "min": 0.0,
+    "max": 60.0,
+    "step": 0.1
+  },
+  {
+    "key": "ctl_max_discharge_current",
+    "name": "Ivt Max Discharge Current",
+    "icon": "mdi:current-dc",
+    "platform": "number",
+    "unit": "A",
+    "min": 0.0,
+    "max": 500.0,
+    "step": 0.1
+  },
+  {
+    "key": "ctl_max_charge_current",
+    "name": "Ivt Max Charge Current",
+    "icon": "mdi:current-dc",
+    "platform": "number",
+    "unit": "A",
+    "min": 0.0,
+    "max": 500.0,
+    "step": 0.1
+  },
+  {
+    "key": "ctl_grid_charge_end_voltage",
+    "name": "Ivt Grid Charge End Voltage",
+    "icon": "mdi:transmission-tower-export",
+    "platform": "number",
+    "unit": "V",
+    "min": 0.0,
+    "max": 60.0,
+    "step": 0.1
+  },
+  {
+    "key": "ctl_discharge_end_soc_ongrid",
+    "name": "Ivt Discharge End SOC On-Grid",
+    "icon": "mdi:battery-minus",
+    "platform": "number",
+    "unit": "%",
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "ctl_discharge_end_voltage_ongrid",
+    "name": "Ivt Stop Discharge Voltage",
+    "icon": "mdi:battery-minus",
+    "platform": "number",
+    "unit": "V",
+    "min": 0.0,
+    "max": 60.0,
+    "step": 0.1
+  },
+  {
+    "key": "ctl_battery_type",
+    "name": "Ivt Battery Type",
+    "icon": "mdi:battery-unknown",
+    "platform": "select",
+    "options": [
+      "Unavailable",
+      "Lead-Acid",
+      "PYLON Lithium-ion",
+      "Dyness Lithium-ion",
+      "Aobo Lithium-ion",
+      "UZ Lithium-ion",
+      "PYLON Force H1",
+      "UZ-HV",
+      "Dyness-HV"
+    ]
+  },
+  {
+    "key": "ctl_capacity_mode",
+    "name": "Ivt Capacity Mode",
+    "icon": "mdi:battery-check",
+    "platform": "select",
+    "options": [
+      "SOC %",
+      "Battery Voltage"
+    ]
+  }
+]

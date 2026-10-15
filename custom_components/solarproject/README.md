@@ -1,112 +1,95 @@
-# SolarProject Home Assistant Integration
+# SolarProject Home Assistant integration
 
-Home Assistant custom component that connects to a **solardongleweb** server
-and automatically creates all entities for a solar dongle (inverter + BMS +
-status).
+Connect Home Assistant directly to a `home_senble` dongle or use the existing
+`solardongleweb` monitoring endpoint. Updated local firmware exposes 18 inverter
+settings over WebSocket: 14 numbers, three selects and one switch. Existing
+inverter/BMS sensors, scaling and unique IDs are preserved.
 
-## Features
+Entity names match `solardongle/home_senjkha.yaml` wherever a corresponding
+entity exists, including inherited BMS definitions. HA uses these complete names
+without prepending the dongle/device name (for example, `Ivt PV Today Lux`,
+`bms1 total voltage`, and `Ivt Work Mode`). Existing entity IDs/history and
+user-assigned names are preserved on reload. Newly created entity IDs follow
+these names.
 
-- **Config flow**: enter the solardongleweb server URL and the dongle device
-  ID (`dg-xxxxxx`, e.g. `dg-abc123`); the connection is validated before
-  saving. Add one integration entry per dongle.
-- **Real-time data**: connects to the server's WebSocket endpoint
-  (`/ws/<deviceId>`) — the server pushes data as it arrives, no polling.
-- **Fast data refresh**: by default the component sends a
-  `requestDataUpdate` to the server every **5 seconds**, which keeps the
-  dongle in fast-data mode so all sensors update about every 5 s.
-- **Auto-reconnect** with exponential backoff (10 s → 60 s, stays within the
-  server's 20 connections/min/IP limit).
-- **All read-only entities** are created automatically:
+## Configure
 
-| Group | Entities |
-|---|---|
-| Inverter live | Ivt PV1-3 Voltage/Power (vdc1-3, pdc1-3), Ivt Battery Voltage/SOC/Power/Current (vbat, soc, pbat, bcur), Ivt Grid Voltage/Frequency/Power per phase (vgr, fgr, pgr, vgr1-3, fgr1-3, pgr1-3), Ivt Load Power per phase (pl, pl1-3), Ivt Inverter Power (po) |
-| Daily energy | Ivt PV Today / Load Today / Battery Charge Today / Battery Discharge Today / Grid Import Today / Grid Export Today (pvtd, ltd, ech, edch, eim, eex) |
-| Lifetime totals | Ivt PV/Load/Grid Import/Grid Export/Battery Charge/Battery Discharge Total (pvall, lall, imall, exall, chgall, dchgall) + Ivt Max Charge/Discharge Power (mxchg, mxdchg) |
-| Temperatures | Ivt DC Temp, Ivt AC Temp (dctemp, actemp) |
-| BMS slots 1-3 | bms1/bms2/bms3 state of charge, total voltage, current, power, capacity remaining, charging cycles, temperature sensor 1-5, power tube temperature, cell voltage 1-N (dynamic), BMS{n} MAC, bms{n} charging/discharging, bms{n} enable bluetooth connection |
-| Status | Online, Lux Cloud, Wifi Signal (dBm), Dongle SN, IP Address, Firmware Version, device info |
+For HACS installation, follow the [repository installation guide](../../README.md#install-with-hacs).
+For manual installation:
 
-**Sensor names follow the dongle HA firmware variant**
-(`solardongle/release_luxbleha.yaml` + `platform/base_luxha.yaml`), so entities
-match the naming used when the dongle publishes MQTT discovery directly to HA:
-inverter sensors use the `Ivt` prefix (`Ivt PV1 Voltage`, `Ivt Battery SOC`),
-BMS sensors use lowercase `bms{n}` (`bms1 total voltage`,
-`bms1 state of charge`, `bms1 cell voltage 3`), and fixed names like
-`Dongle SN`, `IP Address`, `Wifi Signal` are kept verbatim.
+Copy `custom_components/solarproject` into HA's `config/custom_components/`,
+restart HA, and add **solarbox.uk devices** under Settings → Devices & Services.
+Enter the existing Device ID (`dg-xxxxxx`) and Server URL:
 
-## Installation
+- Local monitoring and inverter controls: `http://<dongle-ip>:8001`.
+- Cloud monitoring: the existing server URL, such as `https://ivbms.solarbox.uk`.
 
-1. Copy this `custom_components/solarproject/` directory into your Home
-   Assistant `config/custom_components/` directory:
+HA connects to `/ws/<deviceId>`. Reserve the dongle's LAN IP. Add one integration
+entry per dongle; retain the existing sensor prefix to preserve entity IDs and
+history. Selection is manual, with no automatic cloud fallback. Local WS has no
+authentication and supports two clients; use it on a trusted LAN.
 
-   ```bash
-   cp -r custom_components/solarproject /path/to/homeassistant/config/custom_components/
-   ```
-   ```bash
-   cp -r custom_components/solarproject data/ha1/custom_components/solarproject
-   ``` 
-2. Restart Home Assistant (or reload it with Developer Tools → YAML → Reload).
+Both the updated firmware and updated integration are needed for controls.
+Older local firmware and cloud endpoints without the versioned settings catalog
+continue to provide monitoring. This interface does not implement cloud writes,
+BMS configuration, Wi-Fi settings, Bluetooth configuration, restart or updates.
 
-3. Go to **Settings → Devices & Services → Add Integration → solarbox.uk
-   devices** and enter:
-   - **Server URL**: `https://ivbms.solarbox.uk` (prefilled; change it if your
-     solardongleweb server is elsewhere)
-   - **Device ID**: e.g. `dg-abc123`
-   - **Device name**: optional; defaults to the device ID
-   - **Sensor prefix**: optional; controls entity IDs — entities are created
-     as `sensor.<prefix>_<sensor name>` instead of
-     `sensor.<device_id>_<sensor name>`. Defaults to the device ID.
+## Inverter controls
 
-Repeat for each dongle you want to monitor.
+The active `ctl_*` definitions from `solardongle/home_senjkha.yaml` are shared
+through `platform/sve_home_controls.yaml`. Their names, icons, units, limits,
+steps and select options determine the local catalog. Commented controls are
+excluded. Firmware owns all register addresses, select mappings and conversion
+between displayed units and raw register values.
 
-> Changing the sensor prefix later (options flow) creates entities with new
-> IDs; the old ones stay in the entity registry but stop updating — remove
-> them manually if you no longer need them.
+Controls include work mode, battery type, capacity mode, grid charge, battery
+capacity, power/current limits, SOC limits and charge/discharge voltages.
+`Ivt EOD Voltage` deliberately retains the reference name and its existing SOC
+register with `%` units. New unique IDs use the existing prefix plus the stable
+`ctl_*` key, independent of the display name.
 
-## How the fast-data refresh works
+HA services (`number.set_value`, `select.select_option`, `switch.turn_on/off`)
+wait up to ten seconds for firmware acceptance. Acceptance means validation
+passed and the command entered the inverter write queue. It does not confirm a
+physical setting change. Displayed values update only from inverter readback,
+never optimistically from a request or acceptance result. Configuration refresh
+runs on local connection, every 60 seconds, and after an acknowledged write.
+Readback can differ from the requested value if the inverter rejects or adjusts
+it, or another controller changes it.
 
-Every 5 seconds the component sends
-`{"type":"requestDataUpdate","deviceId":"dg-xxxxxx"}` over the WebSocket. The
-server publishes `ON` to the dongle's `switch/fastdata/command`, which puts
-the dongle in fast mode (its internal 10 s auto-off timer keeps being reset,
-so it stays in fast mode as long as the component is connected) and the
-dongle pushes fresh data roughly every 5 s.
+Rejected, disconnected and timed-out commands raise an HA service error. The
+dongle limits outstanding local commands across both clients to eight and
+rejects excess work as busy. Closing a session drops its unexecuted local
+commands. Neither endpoint retries or replays writes after reconnect. A timeout
+can occur after acceptance if the result is lost; check readback before retrying.
 
-### Trade-offs / notes
+Controls are unavailable until their catalog and fresh readback arrive, and
+while the inverter or WS is disconnected. Sensor data and settings delivery
+remain independent of MQTT fast-data mode; local demand creates no additional
+MQTT control entities or telemetry. A broker outage cannot trigger MQTT's reboot
+timeout in `home_senble`. Existing cloud delivery and commands remain supported.
 
-- The dongle stays in **fast mode continuously** (faster BLE/RS485 polling,
-  more WiFi traffic, slightly higher load on the inverter/BMS). The component
-  always requests fast data every 5 s; the interval is no longer user-configurable.
-- The server's own global fast-data poller also runs every 5 minutes for all
-  online devices — it overlaps harmlessly.
-- There is **no authentication** involved: the server pushes live data to any
-  WebSocket client and accepts `requestDataUpdate` without login. Do not
-  expose the server publicly without protection.
-- Data is received as it arrives; entities that have not received a value yet
-  show as "unknown".
-- Removing a BMS slot does not remove its already-created cell sensors;
-  reload the integration if you physically remove a BMS.
+## Verification
 
-## Development / layout
+Run from the `solarbox_ha` root. Tests use simulated endpoints and temporary HA
+configuration; they do not restart an existing instance or operate hardware.
 
-```
-custom_components/solarproject/
-├── __init__.py        # entry-point setup/unload, device registry
-├── binary_sensor.py   # online/offline, Lux cloud, BMS connection states
-├── config_flow.py     # server URL + device ID validation, options flow
-├── const.py           # field metadata (units, device classes, scaling)
-├── coordinator.py     # WebSocket client, reconnect, fast-data loop, parser
-├── manifest.json
-├── sensor.py          # all numeric/text sensor entities
-└── translations/      # en, vi UI strings
+```bash
+docker run --rm --entrypoint python -v "$PWD:/work:ro" \
+  ghcr.io/home-assistant/home-assistant:stable /work/ha_test/test_local_ws.py
+docker run --rm --entrypoint python -v "$PWD:/work:ro" \
+  ghcr.io/home-assistant/home-assistant:stable /work/ha_test/test_local_ws_runtime.py
+docker run --rm --entrypoint python -v "$PWD:/work:ro" \
+  ghcr.io/home-assistant/home-assistant:stable /work/ha_test/test_inverter_settings.py
+docker run --rm --entrypoint python -v "$PWD:/work:ro" \
+  ghcr.io/home-assistant/home-assistant:stable /work/ha_test/test_inverter_settings_runtime.py
 ```
 
-### Scaling of raw values (matches the web UI)
-
-| Field | Raw unit | Sensor unit |
-|---|---|---|
-| BMS vbat, cur, t0-t5 | 0.1 V / 0.1 A / 0.1 °C | V / A / °C (÷10) |
-| BMS cap | mAh | Ah (÷1000) |
-| BMS vcells | mV | V (÷1000) |
-| Inverter fields | as-is | as-is |
+The settings fixture mirrors the firmware-generated catalog; the firmware host
+test checks it against actual code generation when both repositories are present.
+Tests cover all three control platforms, actual HA service calls, readback-only
+state, errors/timeouts, concurrent request correlation, fresh-state requirements,
+reloads and reconnects without replay. Legacy tests cover scaling and dynamic
+BMS cells. Real TCP/BLE readback, ESP32 heartbeat/Wi-Fi recovery, simultaneous
+clients and broker-outage operation require hardware checks. Flashing and
+production deployment are separate steps.

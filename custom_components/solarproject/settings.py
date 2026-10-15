@@ -37,6 +37,7 @@ class SolarSettingEntity(SolarEntityNaming, Entity):
         self._key = key
         self._platform = self.spec["platform"]
         self._attr_unique_id = entity_unique_id(coordinator, self._platform, key)
+        self.entity_id = f"{self._platform}.{self.suggested_object_id}"
         self._attr_device_info = _device_info(coordinator, entry)
 
     @property

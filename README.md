@@ -23,8 +23,9 @@ Assistant. Keep your existing integration entries. Entity IDs now use the
 configured sensor prefix (or the device ID when empty); see the integration
 documentation for migration behavior and dashboard/automation reference updates.
 
-Version `1.1.2` identifies the prefix naming fix. Earlier code also used version
-`1.1.1`, so that version alone does not confirm the fix is installed. After
+Version `1.1.3` also supports Home Assistant 2026.10's device-aware ID generation.
+Version `1.1.2` added the original prefix naming fix. Earlier code also used
+version `1.1.1`, so that version alone does not confirm the fix is installed. After
 updating the integration files, restart Home Assistant to load the new Python
 code. In the integration's Configure dialog, set **Sensor prefix** to `dg` to
 generate IDs such as `sensor.dg_bms1_cell_voltage_1`; changing only the device
@@ -52,6 +53,6 @@ pushes and pull requests, and can also be run manually.
 
 HACS can install from the default branch without a release. For versioned
 updates, update `custom_components/solarproject/manifest.json` and publish a
-GitHub release with a matching version tag (for example, `v1.1.2` for manifest
-version `1.1.2`). No custom ZIP asset is needed. Being installable as a custom
+GitHub release with a matching version tag (for example, `v1.1.3` for manifest
+version `1.1.3`). No custom ZIP asset is needed. Being installable as a custom
 repository does not automatically add this integration to HACS's default catalog.

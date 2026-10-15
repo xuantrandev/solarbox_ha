@@ -57,6 +57,8 @@ class SettingsRuntimeTest(unittest.IsolatedAsyncioTestCase):
             loader.async_setup(hass)
             hass.config_entries = ConfigEntries(hass, {})
             await hass.config_entries.async_initialize()
+            if setup_devices := getattr(device_registry, 'async_setup', None):
+                setup_devices(hass)
             await asyncio.gather(*(registry.async_load(hass) for registry in
                                    (area_registry, device_registry, entity_registry, issue_registry)))
             try:
@@ -84,10 +86,11 @@ class SettingsRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 def entity_id(key, domain):
                     return registry.async_get_entity_id(domain, 'solarproject', f'solarproject_{ID}_{key}')
 
-                # Check rendered HA names: has_entity_name=True would prepend the device name.
+                # Firmware names remain intact; newer HA versions can add owner names.
                 for spec in catalog()['settings']:
                     registered_id = entity_id(spec['key'], spec['platform'])
-                    self.assertEqual(hass.states.get(registered_id).attributes['friendly_name'], spec['name'])
+                    self.assertEqual(registry.async_get(registered_id).original_name, spec['name'])
+                    self.assertTrue(hass.states.get(registered_id).attributes['friendly_name'].endswith(spec['name']))
                 self.assertEqual(entity_id('ctl_work_mode', 'select'), 'select.dg_aabbcc_ivt_work_mode')
                 current = entity_id('ctl_max_charge_current', 'number')
                 mode = entity_id('ctl_work_mode', 'select')
@@ -119,8 +122,9 @@ class SettingsRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 await hass.config_entries.async_reload(entry.entry_id)
                 await ready()
                 self.assertEqual(entity_id('ctl_max_charge_current', 'number'), current)
-                self.assertEqual(hass.states.get(current).attributes['friendly_name'], 'Ivt Max Charge Current')
-                self.assertEqual(hass.states.get(custom).attributes['friendly_name'], 'My battery capacity')
+                self.assertTrue(hass.states.get(current).attributes['friendly_name'].endswith('Ivt Max Charge Current'))
+                self.assertEqual(registry.async_get(custom).name, 'My battery capacity')
+                self.assertTrue(hass.states.get(custom).attributes['friendly_name'].endswith('My battery capacity'))
                 self.assertEqual(len([s for s in hass.states.async_all() if s.domain == 'number']), 14)
                 self.assertEqual(len(commands), 3)
                 await hass.config_entries.async_unload(entry.entry_id)

@@ -91,7 +91,7 @@ INVERTER_FIELDS: dict[str, SensorDef] = {
     "pl3": SensorDef("Ivt Pload3 (3 pha)", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
     "po": SensorDef("Ivt Inverter Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:power"),
     "eex": SensorDef("Ivt Grid Export Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower"),
-    "pvtd": SensorDef("Ivt PV Today Lux", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power"),
+    "pvtd": SensorDef("Ivt PV Today Lux", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power", 0.001),
     "ltd": SensorDef("Ivt Load Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"),
     "ech": SensorDef("Ivt Battery Charge Today Lux", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:battery-charging"),
     "edch": SensorDef("Ivt Battery Discharge Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:battery-minus"),
@@ -126,6 +126,9 @@ BMS_FIELDS: dict[str, SensorDef] = {
     "vbat": SensorDef("bms{n} total voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT, "mdi:battery", 0.1),
     "cur": SensorDef("bms{n} current", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, "mdi:battery", 0.1),
     "p": SensorDef("bms{n} power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:battery"),
+    # Derived from signed p (W): positive charging, negative discharging.
+    "charging_power": SensorDef("bms{n} charging power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:battery-charging"),
+    "discharging_power": SensorDef("bms{n} discharging power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:battery-minus"),
     "cap": SensorDef("bms{n} capacity remaining", "Ah", None, SensorStateClass.MEASUREMENT, "mdi:battery", 0.001),
     "cycle": SensorDef("bms{n} charging cycles", None, None, SensorStateClass.MEASUREMENT, "mdi:counter"),
     "t0": SensorDef("bms{n} temperature sensor 1", "°C", SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT, "mdi:thermometer", 0.1),

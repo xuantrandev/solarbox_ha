@@ -3,17 +3,26 @@
 Connect Home Assistant directly to a `home_senble` dongle or use the existing
 `solardongleweb` monitoring endpoint. Updated local firmware exposes 18 inverter
 settings over WebSocket: 14 numbers, three selects and one switch. Existing
-inverter/BMS sensors and scaling are preserved.
+inverter/BMS sensors remain available. PV today (`pvtd`) is converted from Wh
+to kWh by dividing by 1000.
+
+Each BMS slot (1–3) provides charging power and discharging power sensors in W,
+derived from its signed `p` value: positive power is charging and negative power
+is discharging. The inactive direction reports zero; both sensors stay unknown
+until power arrives. With prefix `dg`, their entity IDs include
+`sensor.dg_bms1_charging_power` and `sensor.dg_bms1_discharging_power`.
 
 Entity names match `solardongle/home_senjkha.yaml` wherever a corresponding
-entity exists, including inherited BMS definitions. HA uses these complete names
-without prepending the dongle/device name (for example, `Ivt PV Today Lux`,
-`bms1 total voltage`, and `Ivt Work Mode`). Entity IDs use the configured sensor
+entity exists, including inherited BMS definitions (for example, `Ivt PV Today
+Lux`, `bms1 total voltage`, and `Ivt Work Mode`). Entity IDs use the configured sensor
 prefix followed by the entity name, normalized by Home Assistant. For example,
 device `dg-9d8740` with prefix `dg` creates `sensor.dg_bms1_cell_voltage_2`.
 The prefix applies to sensors, binary sensors, and inverter controls. An empty
 prefix uses the device ID, producing `sensor.dg_9d8740_bms1_cell_voltage_2`.
-Friendly names remain unchanged.
+Firmware-defined entity names remain unchanged; newer Home Assistant versions
+can include the device name in their rendered friendly names. Version `1.1.3`
+supplies complete entity ID suggestions so HA 2026.10 does not also prepend the
+device name to newly created IDs.
 
 On setup or after a prefix change, recognizable generated IDs are migrated in
 place, including older IDs with the device name and IDs without a prefix.
@@ -86,6 +95,9 @@ timeout in `home_senble`. Existing cloud delivery and commands remain supported.
 
 Run from the `solarbox_ha` root. Tests use simulated endpoints and temporary HA
 configuration; they do not restart an existing instance or operate hardware.
+Test with explicit image tags `2025.11.3` and `2026.10.1`; a locally cached
+`stable` image can point to an older Home Assistant version. Substitute either
+explicit tag for `stable` in the commands below.
 
 ```bash
 docker run --rm --entrypoint python -v "$PWD:/work:ro" \

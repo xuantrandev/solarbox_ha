@@ -16,12 +16,15 @@ ID='dg-aabbcc'
 class RuntimeTest(unittest.IsolatedAsyncioTestCase):
  async def test_sensor_platforms(self):
   requests=[]
+  sockets=[]
   async def stream(request):
    ws=web.WebSocketResponse();await ws.prepare(request)
+   sockets.append(ws)
    for payload in [
     {'type':'deviceStatus','deviceId':ID,'status':'online'},
-    {'type':'ivtdata','data':{'vbat':52.5,'pdc1':120,'pvtd':2.3}},
-    {'type':'bmsData','bmsType':'bms1','data':{'vbat':525,'cur':-109,'vcells':[3279,3280]}},
+    {'type':'ivtdata','data':{'vbat':52.5,'pdc1':120,'pvtd':2300}},
+    {'type':'bmsData','bmsType':'bms1','data':{'vbat':525,'cur':-109,'p':-572,'vcells':[3279,3280]}},
+    {'type':'bmsData','bmsType':'bms2','data':{'p':125.25}},
    ]:await ws.send_json(payload)
    async for message in ws:requests.append(message.json())
    return ws
@@ -32,6 +35,7 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
    (root/'custom_components/solarproject').symlink_to(Path(__file__).resolve().parents[1]/'custom_components/solarproject',target_is_directory=True)
    hass=HomeAssistant(directory);hass.config.skip_pip=True;loader.async_setup(hass)
    hass.config_entries=ConfigEntries(hass,{});await hass.config_entries.async_initialize()
+   if setup_devices:=getattr(device_registry,'async_setup',None):setup_devices(hass)
    await asyncio.gather(*(registry.async_load(hass) for registry in
                          (area_registry,device_registry,entity_registry,issue_registry)))
    try:
@@ -46,20 +50,40 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
     await hass.async_block_till_done()
     states=hass.states.async_all()
     self.assertEqual({s.domain for s in states},{'sensor','binary_sensor'})
-    for suffix,value in [('bms1_total_voltage',52.5),('bms1_current',-10.9),('bms1_cell_voltage_1',3.279),('ivt_pv1_power',120)]:
+    for suffix,value in [('bms1_total_voltage',52.5),('bms1_current',-10.9),('bms1_cell_voltage_1',3.279),('ivt_pv1_power',120),('ivt_pv_today_lux',2.3),('bms1_power',-572),('bms1_charging_power',0),('bms1_discharging_power',572),('bms2_charging_power',125.25),('bms2_discharging_power',0)]:
      state=next(s for s in states if s.entity_id.endswith(suffix))
      self.assertEqual(float(state.state),value)
     self.assertEqual(next(s for s in states if s.entity_id.endswith('ivt_pv_today_lux')).attributes['state_class'],'total_increasing')
+    self.assertEqual(next(s for s in states if s.entity_id.endswith('ivt_pv_today_lux')).attributes['unit_of_measurement'],'kWh')
+    for slot in (1,2,3):
+     for direction in ('charging','discharging'):
+      state=hass.states.get(f'sensor.dg_aabbcc_bms{slot}_{direction}_power')
+      self.assertIsNotNone(state)
+      self.assertEqual(state.attributes['unit_of_measurement'],'W')
+      self.assertEqual(state.attributes['device_class'],'power')
+      self.assertEqual(state.attributes['state_class'],'measurement')
+      if slot==3:self.assertEqual(state.state,'unknown')
+    # Updates must clear the old direction, retain fractions, and isolate slots.
+    for slot,power in [(1,310.125),(1,-200.5),(1,0),(3,-42.75),(3,90),(3,0)]:
+     with self.subTest(slot=slot,power=power):
+      await sockets[-1].send_json({'type':'bmsData','bmsType':f'bms{slot}','data':{'p':power}})
+      expected=(max(power,0),max(-power,0))
+      async with asyncio.timeout(5):
+       while tuple(hass.states.get(f'sensor.dg_aabbcc_bms{slot}_{direction}_power').state for direction in ('charging','discharging'))!=tuple(str(float(value)) for value in expected):
+        await asyncio.sleep(.01)
+      self.assertEqual(float(hass.states.get('sensor.dg_aabbcc_bms2_charging_power').state),125.25)
     registry=entity_registry.async_get(hass)
     for key,name in {
      'vbat':'Ivt Battery Voltage', 'bcur':'Ivt Battery Current Lux', 'pbat':'Ivt Battery Power Lux',
      'pvtd':'Ivt PV Today Lux', 'pvall':'Ivt PV Total Lux', 'ech':'Ivt Battery Charge Today Lux',
      'pl1':'Ivt Load L1 Power', 'bms1_vbat':'bms1 total voltage',
+     'bms1_charging_power':'bms1 charging power', 'bms1_discharging_power':'bms1 discharging power',
      'bms1_vcells_1':'bms1 cell voltage 1', 'bms1_connected':'bms1 online status',
     }.items():
      domain='binary_sensor' if key=='bms1_connected' else 'sensor'
      registered_id=registry.async_get_entity_id(domain,'solarproject',f'solarproject_{ID}_{key}')
-     self.assertEqual(hass.states.get(registered_id).attributes['friendly_name'],name)
+     self.assertEqual(registry.async_get(registered_id).original_name,name)
+     self.assertTrue(hass.states.get(registered_id).attributes['friendly_name'].endswith(name))
     self.assertEqual(registry.async_get_entity_id('sensor','solarproject',f'solarproject_{ID}_vbat'),'sensor.dg_aabbcc_ivt_battery_voltage')
     cells=[e for e in registry.entities.values() if e.unique_id=='solarproject_dg-aabbcc_bms1_vcells_1']
     self.assertEqual(len(cells),1)

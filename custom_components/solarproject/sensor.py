@@ -112,6 +112,7 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
         self._attr_icon = icon
         self._scale = scale
         self._attr_unique_id = entity_unique_id(coordinator, "sensor", key)
+        self.entity_id = f"sensor.{self.suggested_object_id}"
         self._attr_device_info = _device_info(coordinator, entry)
 
     async def async_added_to_hass(self) -> None:
@@ -176,6 +177,7 @@ class BmsScalarSensor(_SolarSensorBase):
     ) -> None:
         spec = BMS_FIELDS[key]
         self._slot = slot
+        self._field = key
         super().__init__(
             coordinator,
             f"bms{slot}_{key}",
@@ -187,6 +189,17 @@ class BmsScalarSensor(_SolarSensorBase):
             icon=spec.icon,
             scale=spec.scale,
         )
+
+    @property
+    def native_value(self) -> float | None:
+        if self._field not in ("charging_power", "discharging_power"):
+            return super().native_value
+        power = self._coordinator.data.get(f"bms{self._slot}_p")
+        if not isinstance(power, (int, float)) or isinstance(power, bool):
+            return None
+        if self._field == "discharging_power":
+            power = -power
+        return round(max(0.0, float(power)), 3)
 
 
 class BmsCellSensor(_SolarSensorBase):

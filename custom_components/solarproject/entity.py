@@ -45,6 +45,9 @@ def entity_object_id(prefix: str, name: str) -> str:
 class SolarEntityNaming:
     """Suggest IDs for new entities without changing their friendly names."""
 
+    # Constructors also set entity_id explicitly: HA 2026.10 treats a plain
+    # suggested_object_id as a base to which it can prepend the device name.
+
     _attr_has_entity_name = False
 
     @property

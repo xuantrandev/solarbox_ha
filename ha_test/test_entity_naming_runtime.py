@@ -66,6 +66,8 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
         loader.async_setup(self.hass)
         self.hass.config_entries = ConfigEntries(self.hass, {})
         await self.hass.config_entries.async_initialize()
+        if setup_devices := getattr(device_registry, "async_setup", None):
+            setup_devices(self.hass)
         await asyncio.gather(*(registry.async_load(self.hass) for registry in
                                (area_registry, device_registry, entity_registry, issue_registry)))
         await async_get_network(self.hass)
@@ -138,7 +140,7 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.registered_id(platform, key), f"{platform}.{object_id}")
         cell = self.hass.states.get("sensor.dg_bms1_cell_voltage_2")
         self.assertEqual(float(cell.state), 3.28)
-        self.assertEqual(cell.attributes["friendly_name"], "bms1 cell voltage 2")
+        self.assertTrue(cell.attributes["friendly_name"].endswith("bms1 cell voltage 2"))
         count = len(self.registry.entities)
         await self.hass.config_entries.async_reload(entry.entry_id)
         await self.ready()

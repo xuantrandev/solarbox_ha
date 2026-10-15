@@ -91,6 +91,7 @@ class SolarBinarySensor(SolarEntityNaming, BinarySensorEntity):
         self._attr_name = name
         self._attr_device_class = device_class
         self._attr_unique_id = entity_unique_id(coordinator, "binary_sensor", key)
+        self.entity_id = f"binary_sensor.{self.suggested_object_id}"
         self._attr_device_info = _device_info(coordinator, entry)
         self._attr_icon = "mdi:power-plug" if device_class else None
 

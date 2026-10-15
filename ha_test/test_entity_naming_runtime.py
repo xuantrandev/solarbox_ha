@@ -163,7 +163,7 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
     async def test_total_pv_power(self):
         entry = await self.entry()
         await self.setup(entry)
-        entity_id = "sensor.dg_ivt_pv_power"
+        entity_id = "sensor.dg_ivt_pv_power_lux"
         self.assertEqual(self.registered_id("sensor", "pv_power"), entity_id)
         state = self.hass.states.get(entity_id)
         self.assertEqual(float(state.state), 120)

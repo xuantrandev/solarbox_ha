@@ -9,7 +9,7 @@ to kWh by dividing by 1000.
 `Ivt PV Power` reports total PV power in W by summing the latest numeric
 `pdc1`, `pdc2`, and `pdc3` readings. Missing channels are ignored; the sensor
 stays unknown until a channel reports power. With prefix `dg`, its entity ID
-is `sensor.dg_ivt_pv_power`.
+is `sensor.dg_ivt_pv_power_lux`.
 
 Each BMS slot (1–3) provides charging power and discharging power sensors in W,
 derived from its signed `p` value: positive power is charging and negative power

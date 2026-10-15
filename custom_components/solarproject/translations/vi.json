@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "solarbox.uk devices",
+        "description": "Kết nối Home Assistant với máy chủ solardongleweb. Nhập URL máy chủ và mã thiết bị của dongle (ví dụ {device_id}). Tất cả các entity của inverter, BMS và trạng thái sẽ được tạo tự động.",
+        "data": {
+          "server": "URL máy chủ",
+          "device_id": "Mã thiết bị",
+          "name": "Tên thiết bị",
+          "sensor_prefix": "Tiền tố cảm biến (tùy chọn)"
+        }
+      }
+    },
+    "error": {
+      "invalid_device_id": "Mã thiết bị không hợp lệ. Dùng định dạng dg-xxxxxx (ví dụ dg-abc123).",
+      "cannot_connect": "Không thể kết nối máy chủ. Kiểm tra URL và kết nối mạng."
+    },
+    "abort": {
+      "already_configured": "Mã thiết bị này đã được cấu hình."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tùy chọn solarbox.uk",
+        "description": "Chỉnh sửa tùy chọn kết nối. Chu kỳ dữ liệu nhanh 5 giây giúp dongle luôn ở chế độ nhanh và dữ liệu được cập nhật mỗi 5 giây; tăng giá trị để giảm tải cho dongle.",
+        "data": {
+          "server": "URL máy chủ",
+          "name": "Tên thiết bị",
+          "sensor_prefix": "Tiền tố cảm biến (tùy chọn)"
+        }
+      }
+    }
+  }
+}

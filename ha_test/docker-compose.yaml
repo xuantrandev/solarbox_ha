@@ -1,0 +1,28 @@
+networks:
+  traefik_proxy_network:
+    external: true
+    name: traefik_proxy_network
+services:
+  homeassistant-ha1:
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    container_name: homeassistant-test
+    restart: unless-stopped
+    volumes:
+      - /run/dbus:/run/dbus
+      - ../data/ha1:/config
+    ports:
+      - 8126:8123
+    networks:
+      - traefik_proxy_network
+    # labels:
+    #   - "traefik.enable=true"
+    #   # - "traefik.http.routers.homeassistant.rule=Host(`ha.${LOCATION}`)"
+    #   # - "traefik.http.routers.homeassistant.entrypoints=web"
+    #   # - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+
+    #   - "traefik.http.routers.homeassistant-ha1.rule=Host(`ha1.xuantran.uk`)"
+    #   - "traefik.http.routers.homeassistant-ha1.entrypoints=websecure"
+    #   - "traefik.http.services.homeassistant-ha1.loadbalancer.server.port=8123"
+    #   - 'traefik.http.routers.homeassistant-ha1.tls.certresolver=letsencrypt'
+
+      # - "com.centurylinklabs.watchtower.enable=true"

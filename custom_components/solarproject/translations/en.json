@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "solarbox.uk devices",
+        "description": "Connect Home Assistant to a solardongleweb server. Enter the server URL and the device ID of the dongle (e.g. {device_id}). All inverter, BMS and status entities will be created automatically.",
+        "data": {
+          "server": "Server URL",
+          "device_id": "Device ID",
+          "name": "Device name",
+          "sensor_prefix": "Sensor prefix (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_device_id": "Invalid device ID. Use the dg-xxxxxx format (e.g. dg-abc123).",
+      "cannot_connect": "Could not connect to the server. Check the URL and that the server is reachable."
+    },
+    "abort": {
+      "already_configured": "This device ID is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "solarbox.uk options",
+        "description": "Edit connection options. A fast-data interval of 5 s keeps the dongle in fast mode so data is refreshed every 5 seconds; higher values reduce load on the dongle.",
+        "data": {
+          "server": "Server URL",
+          "name": "Device name",
+          "sensor_prefix": "Sensor prefix (optional)"
+        }
+      }
+    }
+  }
+}

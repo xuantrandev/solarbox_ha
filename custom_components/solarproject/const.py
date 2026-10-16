@@ -84,8 +84,9 @@ INVERTER_FIELDS: dict[str, SensorDef] = {
     "fgr1": SensorDef("Ivt Fgrid1 (3 pha)", "Hz", SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "mdi:sine-wave"),
     "fgr2": SensorDef("Ivt Fgrid2 (3 pha)", "Hz", SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "mdi:sine-wave"),
     "fgr3": SensorDef("Ivt Fgrid3 (3 pha)", "Hz", SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "mdi:sine-wave"),
-    "pbat": SensorDef("Ivt Battery Power Lux", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:battery"),
-    "bcur": SensorDef("Ivt Battery Current Lux", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, "mdi:battery"),
+    # Dongle reports negative when charging; HA exposes positive = charging.
+    "pbat": SensorDef("Ivt Battery Power Lux", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:battery", -1.0),
+    "bcur": SensorDef("Ivt Battery Current Lux", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, "mdi:battery", -1.0),
     "pl": SensorDef("Ivt Load Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
     "pl1": SensorDef("Ivt Load L1 Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),
     "pl2": SensorDef("Ivt Pload2 (3 pha)", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, "mdi:home-lightning-bolt"),

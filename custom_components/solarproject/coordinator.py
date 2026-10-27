@@ -364,6 +364,25 @@ class SolarProjectCoordinator:
             self._notify()
             return
 
+        if msg_type == "homeSensorData":
+            # Only explicitly supported supplementary keys can enter the state map.
+            from .const import BMS_SLOTS, home_native_keys
+            allowed = home_native_keys()
+            values = payload.get("data")
+            if payload.get("deviceId") == self.device_id and isinstance(values, dict):
+                for key, value in values.items():
+                    if key in allowed and (value is None or isinstance(value, (str, int, float, bool))):
+                        self.data[key] = None if isinstance(value, float) and not math.isfinite(value) else value
+                for slot in BMS_SLOTS:
+                    cells = [i for i in range(1, 17)
+                             if isinstance(self.data.get(f"bms{slot}_native_cell_voltage_{i}"), (int, float))]
+                    if cells:
+                        count_key = f"bms{slot}_cell_count"
+                        self.data[count_key] = max(self.data.get(count_key, 0), max(cells))
+                        self._maybe_create_cells(f"bms{slot}", self.data[count_key])
+                self._notify()
+            return
+
         if msg_type == MSG_IVTDATA:
             if isinstance(payload.get("data"), dict):
                 self._merge_data(payload["data"])

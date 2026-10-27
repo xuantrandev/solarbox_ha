@@ -3,12 +3,13 @@
     "step": {
       "user": {
         "title": "solarbox.uk devices",
-        "description": "Kết nối Home Assistant với máy chủ solardongleweb. Nhập URL máy chủ và mã thiết bị của dongle (ví dụ {device_id}). Tất cả các entity của inverter, BMS và trạng thái sẽ được tạo tự động.",
+        "description": "Kết nối dongle qua mạng nội bộ hoặc máy chủ solardongleweb. Chọn bộ cảm biến phù hợp với dongle.",
         "data": {
           "server": "URL máy chủ",
           "device_id": "Mã thiết bị",
           "name": "Tên thiết bị",
-          "sensor_prefix": "Tiền tố cảm biến (tùy chọn)"
+          "sensor_prefix": "Tiền tố cảm biến (tùy chọn)",
+          "sensor_profile": "Bộ cảm biến"
         }
       }
     },
@@ -24,12 +25,21 @@
     "step": {
       "init": {
         "title": "Tùy chọn solarbox.uk",
-        "description": "Chỉnh sửa tùy chọn kết nối. Chu kỳ dữ liệu nhanh 5 giây giúp dongle luôn ở chế độ nhanh và dữ liệu được cập nhật mỗi 5 giây; tăng giá trị để giảm tải cho dongle.",
+        "description": "Chỉnh sửa kết nối, bộ cảm biến, tên thiết bị và tiền tố cảm biến. Đổi bộ cảm biến sẽ giữ lại lịch sử thực thể.",
         "data": {
           "server": "URL máy chủ",
           "name": "Tên thiết bị",
-          "sensor_prefix": "Tiền tố cảm biến (tùy chọn)"
+          "sensor_prefix": "Tiền tố cảm biến (tùy chọn)",
+          "sensor_profile": "Bộ cảm biến"
         }
+      }
+    }
+  },
+  "selector": {
+    "sensor_profile": {
+      "options": {
+        "inverter_bms": "Inverter + BMS (home_senble.yaml)",
+        "mq_bms": "MQ + BMS (home_mq2ha.yaml)"
       }
     }
   }

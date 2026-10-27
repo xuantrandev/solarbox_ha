@@ -3,7 +3,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.exceptions import HomeAssistantError
 
 from . import get_coordinator
-from .const import BIN_BMS_CHG, BIN_BMS_DISCHG, BMS_SLOTS
+from .const import BIN_BMS_CHG, BIN_BMS_DISCHG, BMS_SLOTS, is_mq_profile
 from .entity import SolarEntityNaming, entity_unique_id
 from .sensor import _device_info
 from .settings import SolarSettingEntity, setup_controls
@@ -41,6 +41,7 @@ class SolarBmsStateSwitch(SolarEntityNaming, SwitchEntity):
     _attr_should_poll = False
 
     def __init__(self, coordinator, entry, key, name, icon):
+        self._entry = entry
         self._coordinator = coordinator
         self._key = key
         self._attr_name = name
@@ -55,7 +56,10 @@ class SolarBmsStateSwitch(SolarEntityNaming, SwitchEntity):
 
     @property
     def is_on(self):
-        return self._coordinator.data.get(self._key)
+        key = self._key
+        if is_mq_profile(self._entry):
+            key = key.replace("_dischg", "_native_discharging").replace("_chg", "_native_charging")
+        return self._coordinator.data.get(key)
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()

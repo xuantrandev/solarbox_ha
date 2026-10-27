@@ -17,6 +17,10 @@ CONF_DEVICE_ID = "device_id"
 CONF_FAST_DATA_INTERVAL = "fast_data_interval"
 CONF_DEVICE_NAME = "name"
 CONF_SENSOR_PREFIX = "sensor_prefix"
+CONF_SENSOR_PROFILE = "sensor_profile"
+PROFILE_INVERTER = "inverter_bms"
+PROFILE_MQ = "mq_bms"
+DEFAULT_SENSOR_PROFILE = PROFILE_INVERTER
 
 DEFAULT_SERVER = "https://ivbms.solarbox.uk"
 DEFAULT_FAST_DATA_INTERVAL = 5  # seconds
@@ -58,6 +62,7 @@ class SensorDef(NamedTuple):
     state_class: str | None = None
     icon: str | None = None
     scale: float = 1.0
+    precision: int = 3
 
 
 # ── Inverter live data (data.live) ────────────────────────────────────────────
@@ -174,3 +179,85 @@ BIN_FIX_LUX_SERVER = "fix_lux_server_state"
 BIN_BMS_CONNECTED = "bms{n}_connected"
 BIN_BMS_CHG = "bms{n}_chg"
 BIN_BMS_DISCHG = "bms{n}_dischg"
+
+
+# MQ uses the same wire fields as the inverter, but native HA names/units.
+# Prefix keys with mq_ in HA so choosing a different profile cannot reuse an
+# inverter entity's history for an unrelated measurement.
+MQ_FIELDS: dict[str, SensorDef] = {
+    "mq_dctemp": SensorDef("MQ Temperature", "°C", SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT),
+    "mq_vdc1": SensorDef("MQ PV Voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT),
+    "mq_idc1": SensorDef("MQ PV Current", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT),
+    "mq_vbat": SensorDef("MQ Battery Voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT),
+    "mq_bcur": SensorDef("MQ Battery Current", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, scale=-1),
+    "mq_pdc1": SensorDef("MQ PV Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT),
+    "mq_pbat": SensorDef("MQ Battery Power", "W", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, scale=-1),
+    "mq_pvtd": SensorDef("MQ PV Energy Today", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, scale=0.001),
+    "mq_pvall": SensorDef("MQ PV Energy Total", "kWh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    "mq_status_code": SensorDef("MQ Status Code", state_class=SensorStateClass.MEASUREMENT),
+    "mq_efficiency": SensorDef("MQ MPPT Efficiency", "%", state_class=SensorStateClass.MEASUREMENT),
+}
+# Preserve native power precision locally while retaining integer cloud payloads.
+MQ_NATIVE_POWER_KEYS = {"mq_pdc1": "mq_native_pv_power", "mq_pbat": "mq_native_battery_power"}
+MQ_TEXT_FIELDS = {"mq_status_text": SensorDef("MQ MPPT Status")}
+MQ_BMS_NATIVE_FIELDS: dict[str, SensorDef] = {
+    "min_voltage_cell": SensorDef("bms{n} min voltage cell", state_class=SensorStateClass.MEASUREMENT),
+    "max_voltage_cell": SensorDef("bms{n} max voltage cell", state_class=SensorStateClass.MEASUREMENT),
+    "delta_cell_voltage": SensorDef("bms{n} delta cell voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT),
+    "average_cell_voltage": SensorDef("bms{n} average cell voltage", "V", SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT, precision=4),
+    "design_capacity": SensorDef("bms{n} total battery capacity setting", "Ah", state_class=SensorStateClass.MEASUREMENT),
+    "balancing_current": SensorDef("bms{n} balancing current", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT),
+    "cycle_charge": SensorDef("bms{n} total charging cycle capacity", "Ah", state_class=SensorStateClass.MEASUREMENT),
+    **{f"cell_resistance_{i}": SensorDef(f"bms{{n}} cell resistance {i}", "Ω", state_class=SensorStateClass.MEASUREMENT) for i in range(1, 17)},
+}
+MQ_BMS_NATIVE_TEXT_FIELDS = {
+    key: SensorDef("bms{n} " + name)
+    for key, name in (
+        ("errors", "errors"), ("total_runtime_formatted", "total runtime formatted"),
+        ("software_version", "software version"), ("hardware_version", "hardware version"),
+    )
+}
+MQ_DONGLE_FIELDS = {
+    "dongle_temperature": SensorDef("Dongle Internal Temperature", "°C", SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT),
+    "dongle_uptime": SensorDef("Dongle Uptime", "s", SensorDeviceClass.DURATION, SensorStateClass.MEASUREMENT),
+}
+
+
+def is_mq_profile(entry):
+    return entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) == PROFILE_MQ
+
+
+def mq_native_fields(text=False):
+    """Native-unit supplemental fields, disjoint from raw scaled BMS keys."""
+    fields = MQ_BMS_NATIVE_TEXT_FIELDS if text else MQ_BMS_NATIVE_FIELDS
+    result = {} if text else dict(MQ_DONGLE_FIELDS)
+    for slot in BMS_SLOTS:
+        for key, spec in fields.items():
+            result[f"bms{slot}_native_{key}"] = spec._replace(name=spec.name.format(n=slot))
+    return result
+
+
+# Read native BMS fields locally: cloud cap and temperature indices are not
+# equivalent to the native firmware's capacity-remaining/temperature sensors.
+BMS_NATIVE_KEYS = {
+    "soc": "state_of_charge",
+    "vbat": "total_voltage",
+    "cur": "current",
+    "p": "power",
+    "cap": "capacity_remaining",
+    "cycle": "charging_cycles",
+    "t0": "temperature_sensor_1",
+    "t1": "temperature_sensor_2",
+    "t2": "temperature_sensor_3",
+    "t3": "temperature_sensor_4",
+    "t4": "mosfet_temperature"
+}
+
+
+def home_native_keys():
+    keys = set(MQ_NATIVE_POWER_KEYS.values()) | set(mq_native_fields()) | set(mq_native_fields(text=True))
+    for slot in BMS_SLOTS:
+        fields = set(BMS_NATIVE_KEYS.values()) | {"mac", "balancing", "charging", "discharging"}
+        fields.update(f"cell_voltage_{i}" for i in range(1, 17))
+        keys.update(f"bms{slot}_native_{field}" for field in fields)
+    return keys

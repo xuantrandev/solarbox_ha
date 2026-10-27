@@ -21,6 +21,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import get_coordinator
 from .const import (
     BMS_CELL_DEF,
+    BMS_NATIVE_KEYS,
     BMS_FIELDS,
     BMS_MAC_TEXT_DEF,
     BMS_MAX_CELLS,
@@ -32,6 +33,11 @@ from .const import (
     TEXT_FIELDS,
     WIFI_SIGNAL_DEF,
     SensorDef,
+    MQ_FIELDS,
+    MQ_NATIVE_POWER_KEYS,
+    MQ_TEXT_FIELDS,
+    is_mq_profile,
+    mq_native_fields,
 )
 from .coordinator import SolarProjectCoordinator
 from .entity import SolarEntityNaming, entity_unique_id
@@ -48,17 +54,27 @@ async def async_setup_entry(
     coordinator = get_coordinator(hass, entry)
     entities: list[SensorEntity] = []
 
-    for key in INVERTER_FIELDS:
-        entities.append(SolarSensorEntity(coordinator, key, entry))
-    for key in STATISTIC_FIELDS:
-        entities.append(SolarSensorEntity(coordinator, key, entry))
-    for key in TEXT_FIELDS:
-        entities.append(SolarTextSensor(coordinator, key, entry))
-    entities.append(
-        SolarSensorEntity(coordinator, "wifi_signal", entry, spec=WIFI_SIGNAL_DEF)
-    )
+    if is_mq_profile(entry):
+        numeric = {**MQ_FIELDS, **mq_native_fields()}
+        texts = {
+            **{key: spec for key, spec in TEXT_FIELDS.items() if key.startswith("device_info_")},
+            **MQ_TEXT_FIELDS,
+            **mq_native_fields(text=True),
+        }
+        wifi_spec = WIFI_SIGNAL_DEF._replace(name="Dongle WiFi Signal Strength")
+    else:
+        numeric = {**INVERTER_FIELDS, **STATISTIC_FIELDS}
+        texts = TEXT_FIELDS
+        wifi_spec = WIFI_SIGNAL_DEF
+    for key, spec in numeric.items():
+        entities.append(SolarSensorEntity(coordinator, key, entry, spec=spec))
+    for key, spec in texts.items():
+        entities.append(SolarTextSensor(coordinator, key, entry, spec=spec))
+    entities.append(SolarSensorEntity(coordinator, "wifi_signal", entry, spec=wifi_spec))
     for slot in BMS_SLOTS:
         for key in BMS_FIELDS:
+            if is_mq_profile(entry) and key == "t5":
+                continue  # The reference has four probes plus MOSFET temperature.
             entities.append(BmsScalarSensor(coordinator, slot, key, entry))
         entities.append(BmsMacSensor(coordinator, slot, entry))
 
@@ -101,6 +117,7 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
         state_class: str | None = None,
         icon: str | None = None,
         scale: float = 1.0,
+        precision: int = 3,
     ) -> None:
         self._coordinator = coordinator
         self._key = key
@@ -111,6 +128,7 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
         self._attr_state_class = state_class
         self._attr_icon = icon
         self._scale = scale
+        self._precision = precision
         self._attr_unique_id = entity_unique_id(coordinator, "sensor", key)
         self.entity_id = f"sensor.{self.suggested_object_id}"
         self._attr_device_info = _device_info(coordinator, entry)
@@ -133,10 +151,15 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        value = self._coordinator.data.get(self._key)
+        native_key = MQ_NATIVE_POWER_KEYS.get(self._key)
+        if native_key and native_key in self._coordinator.data:
+            value = self._coordinator.data[native_key]
+            return round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+        key = self._key[3:] if self._key.startswith("mq_") else self._key
+        value = self._coordinator.data.get(key)
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             return None
-        return round(float(value) * self._scale, 3)
+        return round(float(value) * self._scale, self._precision)
 
 
 class SolarSensorEntity(_SolarSensorBase):
@@ -162,6 +185,7 @@ class SolarSensorEntity(_SolarSensorBase):
             state_class=spec.state_class,
             icon=spec.icon,
             scale=spec.scale,
+            precision=spec.precision,
         )
 
     @property
@@ -200,13 +224,19 @@ class BmsScalarSensor(_SolarSensorBase):
             state_class=spec.state_class,
             icon=spec.icon,
             scale=spec.scale,
+            precision=spec.precision,
         )
 
     @property
     def native_value(self) -> float | None:
         if self._field not in ("charging_power", "discharging_power"):
+            if is_mq_profile(self._entry) and self._field in BMS_NATIVE_KEYS:
+                native = BMS_NATIVE_KEYS[self._field]
+                value = self._coordinator.data.get(f"bms{self._slot}_native_{native}")
+                return round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
             return super().native_value
-        power = self._coordinator.data.get(f"bms{self._slot}_p")
+        power_key = f"bms{self._slot}_native_power" if is_mq_profile(self._entry) else f"bms{self._slot}_p"
+        power = self._coordinator.data.get(power_key)
         if not isinstance(power, (int, float)) or isinstance(power, bool):
             return None
         if self._field == "discharging_power":
@@ -247,6 +277,14 @@ class BmsCellSensor(_SolarSensorBase):
         )
 
 
+    @property
+    def native_value(self) -> float | None:
+        if is_mq_profile(self._entry) and self._cell_index <= 16:
+            value = self._coordinator.data.get(f"{self._slot}_native_cell_voltage_{self._cell_index}")
+            return round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+        return super().native_value
+
+
 class BmsMacSensor(_SolarSensorBase):
     """Entity for one BMS slot's MAC address (text)."""
 
@@ -270,7 +308,8 @@ class BmsMacSensor(_SolarSensorBase):
 
     @property
     def native_value(self) -> str | None:
-        value = self._coordinator.data.get(self._key)
+        key = self._key.replace("_mac", "_native_mac") if is_mq_profile(self._entry) else self._key
+        value = self._coordinator.data.get(key)
         if value is None:
             return None
         return str(value)
@@ -280,9 +319,10 @@ class SolarTextSensor(_SolarSensorBase):
     """Read-only string field (inverter type, serial, IPs, device info)."""
 
     def __init__(
-        self, coordinator: SolarProjectCoordinator, key: str, entry: ConfigEntry
+        self, coordinator: SolarProjectCoordinator, key: str, entry: ConfigEntry,
+        *, spec: SensorDef | None = None,
     ) -> None:
-        spec = TEXT_FIELDS[key]
+        spec = spec or TEXT_FIELDS[key]
         super().__init__(
             coordinator,
             key,
@@ -297,7 +337,8 @@ class SolarTextSensor(_SolarSensorBase):
 
     @property
     def native_value(self) -> str | None:
-        value: Any = self._coordinator.data.get(self._key)
+        key = self._key[3:] if self._key.startswith("mq_") else self._key
+        value: Any = self._coordinator.data.get(key)
         if value is None:
             return None
         return str(value)

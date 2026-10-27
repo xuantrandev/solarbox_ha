@@ -27,6 +27,10 @@ from .const import (
     STATISTIC_FIELDS,
     TEXT_FIELDS,
     WIFI_SIGNAL_DEF,
+    MQ_FIELDS,
+    MQ_TEXT_FIELDS,
+    is_mq_profile,
+    mq_native_fields,
 )
 
 if TYPE_CHECKING:
@@ -64,14 +68,16 @@ def entity_unique_id(
     )
 
 
-def _known_names() -> dict[str, dict[str, str]]:
+def _known_names(entry=None) -> dict[str, dict[str, str]]:
     """Map stable telemetry keys, including not-yet-discovered cells, to names."""
     sensors = {
         key: spec.name
         for fields in (INVERTER_FIELDS, STATISTIC_FIELDS, TEXT_FIELDS)
         for key, spec in fields.items()
     }
-    sensors["wifi_signal"] = WIFI_SIGNAL_DEF.name
+    for fields in (MQ_FIELDS, MQ_TEXT_FIELDS, mq_native_fields(), mq_native_fields(text=True)):
+        sensors.update({key: spec.name for key, spec in fields.items()})
+    sensors["wifi_signal"] = ("Dongle WiFi Signal Strength" if entry is not None and is_mq_profile(entry) else WIFI_SIGNAL_DEF.name)
     binary = {
         BIN_ONLINE: "Online",
         BIN_LUX_SERVER: "Lux Cloud",
@@ -88,6 +94,7 @@ def _known_names() -> dict[str, dict[str, str]]:
             f"bms{slot}_vcells_{index}": BMS_CELL_DEF.name.format(n=slot, i=index)
             for index in range(1, BMS_MAX_CELLS + 1)
         })
+        binary[f"bms{slot}_native_balancing"] = f"bms{slot} balancing"
         binary.update({
             BIN_BMS_CONNECTED.format(n=slot): f"bms{slot} online status",
             BIN_BMS_CHG.format(n=slot): f"bms{slot} charging",
@@ -131,7 +138,7 @@ def async_migrate_entity_ids(
     """Migrate this entry before platform setup, preserving registry records."""
     registry = entity_registry.async_get(hass)
     devices = device_registry.async_get(hass)
-    names = _known_names()
+    names = _known_names(entry)
     for registered in entity_registry.async_entries_for_config_entry(
         registry, entry.entry_id
     ):
@@ -184,3 +191,31 @@ def async_migrate_entity_ids(
             )
             continue
         registry.async_update_entity(registered.entity_id, new_entity_id=target)
+
+
+@callback
+def async_apply_sensor_profile(hass, entry, coordinator):
+    """Preserve registry records and user-disabled choices when profiles change."""
+    registry = entity_registry.async_get(hass)
+    names = _known_names(entry)
+    mq_keys = set(MQ_FIELDS) | set(MQ_TEXT_FIELDS) | set(mq_native_fields()) | set(mq_native_fields(text=True))
+    mq_keys.update(f"bms{slot}_native_balancing" for slot in BMS_SLOTS)
+    inverter_keys = set(INVERTER_FIELDS) | set(STATISTIC_FIELDS) | {
+        "ivttype", "dongle_sn", "lux_server_ip", BIN_LUX_SERVER, BIN_FIX_LUX_SERVER,
+    }
+    inverter_keys.update(f"bms{slot}_t5" for slot in BMS_SLOTS)
+    for registered in entity_registry.async_entries_for_config_entry(registry, entry.entry_id):
+        if registered.platform != DOMAIN:
+            continue
+        identity = _identity(registered, names)
+        if identity is None:
+            continue
+        key = identity[1]
+        is_inverter = key in inverter_keys or key.startswith("ctl_")
+        if key not in mq_keys and not is_inverter:
+            continue
+        enabled = (key in mq_keys) == is_mq_profile(entry)
+        if not enabled and registered.disabled_by is None:
+            registry.async_update_entity(registered.entity_id, disabled_by=entity_registry.RegistryEntryDisabler.INTEGRATION)
+        elif enabled and registered.disabled_by == entity_registry.RegistryEntryDisabler.INTEGRATION:
+            registry.async_update_entity(registered.entity_id, disabled_by=None)

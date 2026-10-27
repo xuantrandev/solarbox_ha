@@ -134,3 +134,31 @@ Legacy tests cover scaling and dynamic
 BMS cells. Real TCP/BLE readback, ESP32 heartbeat/Wi-Fi recovery, simultaneous
 clients and broker-outage operation require hardware checks. Flashing and
 production deployment are separate steps.
+
+## MQ sensor profile and verification
+
+Choose **MQ + BMS** in setup or Configure for `home_mqble.yaml` local firmware.
+Its MQ names and units follow `home_mq2ha.yaml`; local native fields are
+in native units and must not receive the raw BMS scaling a second time. MQ
+charging current/power are exposed as positive values. MQTT payloads retain the
+existing negative-charging convention and daily PV Wh units.
+
+Run the profile tests in an isolated HA container, without mounting a live HA
+configuration or restarting an installed instance (run from `solarbox_ha`):
+
+```bash
+docker run --rm --network none \
+  -v "$PWD:/work:ro" -v "$PWD/../solardongle:/firmware:ro" -w /work \
+  --entrypoint python ghcr.io/home-assistant/home-assistant:stable \
+  tests/test_sensor_profiles.py
+```
+
+These tests exercise profile defaults, both entity sets, names against the
+reference YAML, dynamic cells, units/signs/text, profile persistence, registry
+preservation and control exclusion. Actual radio/WS behavior requires hardware.
+
+The MQ profile takes BMS capacity remaining and temperatures directly from the
+native backend outputs. For example, JK cloud `cap` represents design capacity,
+and its temperature ordering differs from native sensor indices. Local native
+readings avoid applying those cloud conventions to reference sensor names.
+Local MQ powers retain fractional watts; cloud integer power is the fallback.

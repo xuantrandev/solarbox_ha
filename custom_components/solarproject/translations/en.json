@@ -3,12 +3,13 @@
     "step": {
       "user": {
         "title": "solarbox.uk devices",
-        "description": "Connect Home Assistant to a solardongleweb server. Enter the server URL and the device ID of the dongle (e.g. {device_id}). All inverter, BMS and status entities will be created automatically.",
+        "description": "Connect to a dongle locally or through your solardongleweb server. Choose the sensor profile for this dongle.",
         "data": {
           "server": "Server URL",
           "device_id": "Device ID",
           "name": "Device name",
-          "sensor_prefix": "Sensor prefix (optional)"
+          "sensor_prefix": "Sensor prefix (optional)",
+          "sensor_profile": "Sensor profile"
         }
       }
     },
@@ -24,12 +25,21 @@
     "step": {
       "init": {
         "title": "solarbox.uk options",
-        "description": "Edit connection options. A fast-data interval of 5 s keeps the dongle in fast mode so data is refreshed every 5 seconds; higher values reduce load on the dongle.",
+        "description": "Edit the connection, sensor profile, device name and entity prefix. Profile changes preserve existing entity history.",
         "data": {
           "server": "Server URL",
           "name": "Device name",
-          "sensor_prefix": "Sensor prefix (optional)"
+          "sensor_prefix": "Sensor prefix (optional)",
+          "sensor_profile": "Sensor profile"
         }
+      }
+    }
+  },
+  "selector": {
+    "sensor_profile": {
+      "options": {
+        "inverter_bms": "Inverter + BMS (home_senble.yaml)",
+        "mq_bms": "MQ + BMS (home_mq2ha.yaml)"
       }
     }
   }

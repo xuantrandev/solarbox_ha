@@ -56,3 +56,30 @@ updates, update `custom_components/solarproject/manifest.json` and publish a
 GitHub release with a matching version tag (for example, `v1.1.3` for manifest
 version `1.1.3`). No custom ZIP asset is needed. Being installable as a custom
 repository does not automatically add this integration to HACS's default catalog.
+
+## Select inverter or MQ sensors
+
+Version `1.2.0` adds **Sensor profile** to setup and **Configure** for each dongle:
+
+- **Inverter + BMS (home_senble.yaml)** keeps the existing inverter/BMS entities
+  and supported local inverter controls. Existing entries use this profile.
+- **MQ + BMS (home_mq2ha.yaml)** uses `home_mqble.yaml` firmware to expose the
+  MQ controller and BMS sensors matching the native `home_mq2ha.yaml` firmware.
+  This includes cell resistance, voltage summaries, balancing, capacity,
+  error/runtime/version text, and dongle temperature/uptime. Three BMS slots
+  are supported; unavailable backend readings remain unknown.
+
+For MQ local access, install `solardongle/home_mqble.yaml` on the dongle, select
+**MQ + BMS**, and enter `http://<dongle-ip>:8001` with its `dg-xxxxxx` Device ID.
+`home_mq2ha.yaml` remains the separate native ESPHome firmware; the integration
+connects to the WebSocket firmware rather than reading a YAML file at runtime.
+MQ local delivery continues while cloud fast-data streaming is off or the MQTT
+broker is unavailable. Cloud connections can use MQ controller telemetry too. The MQ profile uses
+native BMS/dongle readings for reference parity and requires the local endpoint
+for those readings.
+
+Changing profiles reloads the integration. Inactive profile entities are disabled
+and retained with their history; switching back restores integration-disabled
+entities while preserving user-disabled choices. Shared BMS identities remain
+unchanged. The MQ profile provides monitoring, without inverter controls or BMS
+write controls.

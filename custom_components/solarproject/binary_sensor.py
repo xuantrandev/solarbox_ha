@@ -23,6 +23,7 @@ from .const import (
     BIN_LUX_SERVER,
     BIN_ONLINE,
     BMS_SLOTS,
+    is_mq_profile,
 )
 from .coordinator import SolarProjectCoordinator
 from .entity import SolarEntityNaming, entity_unique_id
@@ -49,6 +50,12 @@ async def async_setup_entry(
             coordinator, entry, BIN_FIX_LUX_SERVER, "Lux Cloud Fix",
         ),
     ]
+    if is_mq_profile(entry):
+        entities = entities[:1]  # Dongle connectivity; Lux cloud does not apply.
+        entities.extend(
+            SolarBinarySensor(coordinator, entry, f"bms{slot}_native_balancing", f"bms{slot} balancing")
+            for slot in BMS_SLOTS
+        )
     for slot in BMS_SLOTS:
         entities.append(
             SolarBinarySensor(
@@ -86,6 +93,7 @@ class SolarBinarySensor(SolarEntityNaming, BinarySensorEntity):
         *,
         device_class: str | None = None,
     ) -> None:
+        self._entry = entry
         self._coordinator = coordinator
         self._key = key
         self._attr_name = name
@@ -115,7 +123,13 @@ class SolarBinarySensor(SolarEntityNaming, BinarySensorEntity):
     def is_on(self) -> bool | None:
         if self._key == BIN_ONLINE:
             return self._coordinator.online
-        value = self._coordinator.data.get(self._key)
+        key = self._key
+        if is_mq_profile(self._entry) and key.startswith("bms"):
+            if key.endswith("_dischg"):
+                key = key[:-7] + "_native_discharging"
+            elif key.endswith("_chg"):
+                key = key[:-4] + "_native_charging"
+        value = self._coordinator.data.get(key)
         if value is None:
             return None
         return bool(value)

@@ -19,6 +19,8 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -26,6 +28,10 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_DEVICE_ID,
+    CONF_SENSOR_PROFILE,
+    DEFAULT_SENSOR_PROFILE,
+    PROFILE_INVERTER,
+    PROFILE_MQ,
     CONF_FAST_DATA_INTERVAL,
     CONF_SENSOR_PREFIX,
     CONF_SERVER,
@@ -37,6 +43,12 @@ from .const import (
 from .coordinator import build_ws_url
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _profile_selector() -> SelectSelector:
+    return SelectSelector(SelectSelectorConfig(
+        options=[PROFILE_INVERTER, PROFILE_MQ], translation_key="sensor_profile"
+    ))
 
 
 def _normalize_server(raw: str) -> str:
@@ -95,6 +107,7 @@ class SolarProjectConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._abort_if_unique_id_configured()
                     data = {
                         CONF_SERVER: server,
+                        CONF_SENSOR_PROFILE: user_input.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE),
                         CONF_DEVICE_ID: device_id,
                         CONF_FAST_DATA_INTERVAL: DEFAULT_FAST_DATA_INTERVAL,
                     }
@@ -117,6 +130,7 @@ class SolarProjectConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_DEVICE_ID): TextSelector(
                     TextSelectorConfig(type=TextSelectorType.TEXT)
                 ),
+                vol.Required(CONF_SENSOR_PROFILE, default=DEFAULT_SENSOR_PROFILE): _profile_selector(),
                 vol.Optional(CONF_NAME): TextSelector(
                     TextSelectorConfig(type=TextSelectorType.TEXT)
                 ),
@@ -138,14 +152,18 @@ class SolarProjectConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class SolarProjectOptionsFlow(OptionsFlow):
-    """Options flow: edit server URL, device name and sensor prefix."""
+    """Options flow: edit connection, profile, device name and sensor prefix."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
             server = _normalize_server(user_input[CONF_SERVER])
-            data = {**self.config_entry.data, CONF_SERVER: server}
+            data = {
+                **self.config_entry.data,
+                CONF_SERVER: server,
+                CONF_SENSOR_PROFILE: user_input.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE),
+            }
             if user_input.get(CONF_NAME):
                 data[CONF_NAME] = user_input[CONF_NAME].strip()
             else:
@@ -169,6 +187,7 @@ class SolarProjectOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_SERVER, default=current.get(CONF_SERVER, DEFAULT_SERVER)
                 ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
+                vol.Required(CONF_SENSOR_PROFILE, default=current.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE)): _profile_selector(),
                 vol.Optional(CONF_NAME, default=current.get(CONF_NAME, "")): TextSelector(
                     TextSelectorConfig(type=TextSelectorType.TEXT)
                 ),

@@ -30,6 +30,7 @@ from .const import (
     MQ_FIELDS,
     MQ_TEXT_FIELDS,
     is_mq_profile,
+    has_bms,
     mq_native_fields,
 )
 
@@ -212,9 +213,14 @@ def async_apply_sensor_profile(hass, entry, coordinator):
             continue
         key = identity[1]
         is_inverter = key in inverter_keys or key.startswith("ctl_")
-        if key not in mq_keys and not is_inverter:
+        if key.startswith("bms") and not has_bms(entry):
+            enabled = False
+        elif key in mq_keys or is_inverter:
+            enabled = (key in mq_keys) == is_mq_profile(entry)
+        elif key.startswith("bms"):
+            enabled = True
+        else:
             continue
-        enabled = (key in mq_keys) == is_mq_profile(entry)
         if not enabled and registered.disabled_by is None:
             registry.async_update_entity(registered.entity_id, disabled_by=entity_registry.RegistryEntryDisabler.INTEGRATION)
         elif enabled and registered.disabled_by == entity_registry.RegistryEntryDisabler.INTEGRATION:

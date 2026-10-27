@@ -37,6 +37,8 @@ from .const import (
     MQ_NATIVE_POWER_KEYS,
     MQ_TEXT_FIELDS,
     is_mq_profile,
+    has_bms,
+    MQ_DONGLE_FIELDS,
     mq_native_fields,
 )
 from .coordinator import SolarProjectCoordinator
@@ -55,11 +57,11 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
 
     if is_mq_profile(entry):
-        numeric = {**MQ_FIELDS, **mq_native_fields()}
+        numeric = {**MQ_FIELDS, **(mq_native_fields() if has_bms(entry) else MQ_DONGLE_FIELDS)}
         texts = {
             **{key: spec for key, spec in TEXT_FIELDS.items() if key.startswith("device_info_")},
             **MQ_TEXT_FIELDS,
-            **mq_native_fields(text=True),
+            **(mq_native_fields(text=True) if has_bms(entry) else {}),
         }
         wifi_spec = WIFI_SIGNAL_DEF._replace(name="Dongle WiFi Signal Strength")
     else:
@@ -71,7 +73,7 @@ async def async_setup_entry(
     for key, spec in texts.items():
         entities.append(SolarTextSensor(coordinator, key, entry, spec=spec))
     entities.append(SolarSensorEntity(coordinator, "wifi_signal", entry, spec=wifi_spec))
-    for slot in BMS_SLOTS:
+    for slot in (BMS_SLOTS if has_bms(entry) else ()):
         for key in BMS_FIELDS:
             if is_mq_profile(entry) and key == "t5":
                 continue  # The reference has four probes plus MOSFET temperature.
@@ -85,7 +87,8 @@ async def async_setup_entry(
             [BmsCellSensor(coordinator, slot, i, entry) for i in indices]
         )
 
-    coordinator.register_cell_adder(add_cells)
+    if has_bms(entry):
+        coordinator.register_cell_adder(add_cells)
 
 
 def _device_info(coordinator: SolarProjectCoordinator, entry: ConfigEntry) -> DeviceInfo:

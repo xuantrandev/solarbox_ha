@@ -20,6 +20,7 @@ CONF_SENSOR_PREFIX = "sensor_prefix"
 CONF_SENSOR_PROFILE = "sensor_profile"
 PROFILE_INVERTER = "inverter_bms"
 PROFILE_MQ = "mq_bms"
+PROFILE_MQ_ONLY = "mq_only"
 DEFAULT_SENSOR_PROFILE = PROFILE_INVERTER
 
 DEFAULT_SERVER = "https://ivbms.solarbox.uk"
@@ -224,7 +225,12 @@ MQ_DONGLE_FIELDS = {
 
 
 def is_mq_profile(entry):
-    return entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) == PROFILE_MQ
+    return entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) in (PROFILE_MQ, PROFILE_MQ_ONLY)
+
+
+def has_bms(entry):
+    """Whether this profile creates BMS entities and discovers cells."""
+    return entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) != PROFILE_MQ_ONLY
 
 
 def mq_native_fields(text=False):

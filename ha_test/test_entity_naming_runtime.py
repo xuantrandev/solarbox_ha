@@ -160,6 +160,50 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.registered_id("sensor", "bms1_vcells_2", ID),
                          "sensor.dg_9d8740_bms1_cell_voltage_2")
 
+    async def test_mq_only_profile_reload_excludes_bms_and_controls(self):
+        entry = await self.entry()
+        self.hass.config_entries.async_update_entry(entry, data={**entry.data, "sensor_profile": "mq_only"})
+        self.assertTrue(await self.hass.config_entries.async_setup(entry.entry_id))
+        async with asyncio.timeout(10):
+            while not self.hass.data[DOMAIN][entry.entry_id].online:
+                await asyncio.sleep(.02)
+        await self.hass.async_block_till_done()
+        self.assertEqual({state.domain for state in self.hass.states.async_all()}, {"sensor", "binary_sensor"})
+        self.assertFalse(any("bms" in state.entity_id for state in self.hass.states.async_all()))
+        self.hass.config_entries.async_update_entry(entry, data={**entry.data, "sensor_profile": "inverter_bms"})
+        self.assertTrue(await self.hass.config_entries.async_reload(entry.entry_id))
+        await self.ready()
+        cell_id = self.registered_id("sensor", "bms1_vcells_2")
+        user_id = self.registered_id("sensor", "bms2_soc")
+        self.registry.async_update_entity(user_id, disabled_by=entity_registry.RegistryEntryDisabler.USER)
+        mq_power_id = None
+        for profile in ("mq_only", "mq_bms", "mq_only", "inverter_bms"):
+            self.hass.config_entries.async_update_entry(entry, data={**entry.data, "sensor_profile": profile})
+            self.assertTrue(await self.hass.config_entries.async_reload(entry.entry_id))
+            async with asyncio.timeout(10):
+                while not (coordinator := self.hass.data[DOMAIN][entry.entry_id]).online or "pdc1" not in coordinator.data:
+                    await asyncio.sleep(.02)
+            await self.hass.async_block_till_done()
+            self.assertEqual(self.registry.async_get(user_id).disabled_by, entity_registry.RegistryEntryDisabler.USER)
+            if profile == "mq_only":
+                # HA may retain unavailable placeholders for disabled registry
+                # records after reload. Check the enabled entity set.
+                states = [state for state in self.hass.states.async_all()
+                          if self.registry.async_get(state.entity_id).disabled_by is None]
+                self.assertEqual({state.domain for state in states}, {"sensor", "binary_sensor"})
+                self.assertFalse(any("bms" in state.entity_id for state in states))
+                self.assertIsNone(coordinator._cell_adder)
+                self.assertEqual(self.registry.async_get(cell_id).disabled_by, entity_registry.RegistryEntryDisabler.INTEGRATION)
+            else:
+                self.assertIsNone(self.registry.async_get(cell_id).disabled_by)
+                self.assertIsNotNone(self.hass.states.get(cell_id))
+            if profile.startswith("mq_"):
+                current_id = self.registered_id("sensor", "mq_pdc1")
+                self.assertEqual(float(self.hass.states.get(current_id).state), 120)
+                if mq_power_id is not None:
+                    self.assertEqual(current_id, mq_power_id)
+                mq_power_id = current_id
+
     async def test_total_pv_power(self):
         entry = await self.entry()
         await self.setup(entry)

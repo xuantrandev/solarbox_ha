@@ -39,7 +39,8 @@
     "sensor_profile": {
       "options": {
         "inverter_bms": "Inverter + BMS (home_senble.yaml)",
-        "mq_bms": "MQ + BMS (home_mq2ha.yaml)"
+        "mq_bms": "MQ + BMS (home_mq2ha.yaml)",
+        "mq_only": "Chỉ MQ (home_mq.yaml)"
       }
     }
   }

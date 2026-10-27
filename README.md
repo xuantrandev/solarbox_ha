@@ -83,3 +83,19 @@ and retained with their history; switching back restores integration-disabled
 entities while preserving user-disabled choices. Shared BMS identities remain
 unchanged. The MQ profile provides monitoring, without inverter controls or BMS
 write controls.
+
+## MQ without BMS
+
+Version `1.2.1` adds **MQ only (home_mq.yaml)** to setup and Configure.
+For `solardongle/home_mq.yaml` firmware, select this profile and enter
+`http://<dongle-ip>:8001` with the dongle's `dg-xxxxxx` Device ID.
+It exposes MQ controller readings, dongle temperature/uptime, Wi-Fi signal,
+device information and online status without BMS entities or inverter controls.
+MQ battery voltage/current/power remain available from the controller without a BMS.
+Local power readings retain fractional watts; cloud telemetry uses the existing
+MQ fallback, while native dongle temperature/uptime require the local endpoint.
+
+Existing profiles and their defaults are preserved. Switching to MQ only disables
+existing BMS entities and retains their history. Switching back restores entities
+disabled by the integration and preserves user-disabled choices. Shared MQ and
+dongle entities keep their identities across MQ profile changes.

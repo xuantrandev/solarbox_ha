@@ -3,7 +3,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.exceptions import HomeAssistantError
 
 from . import get_coordinator
-from .const import BIN_BMS_CHG, BIN_BMS_DISCHG, BMS_SLOTS, is_mq_profile
+from .const import BIN_BMS_CHG, BIN_BMS_DISCHG, BMS_SLOTS, has_bms, is_mq_profile
 from .entity import SolarEntityNaming, entity_unique_id
 from .sensor import _device_info
 from .settings import SolarSettingEntity, setup_controls
@@ -11,6 +11,8 @@ from .settings import SolarSettingEntity, setup_controls
 
 async def async_setup_entry(hass, entry, async_add_entities):
     setup_controls(hass, entry, async_add_entities, "switch", SolarInverterSwitch)
+    if not has_bms(entry):
+        return
     coordinator = get_coordinator(hass, entry)
     async_add_entities([
         SolarBmsStateSwitch(coordinator, entry, key.format(n=slot),

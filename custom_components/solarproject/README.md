@@ -153,7 +153,7 @@ docker run --rm --network none \
   tests/test_sensor_profiles.py
 ```
 
-These tests exercise profile defaults, both entity sets, names against the
+These tests exercise profile defaults, all three entity sets, names against the
 reference YAML, dynamic cells, units/signs/text, profile persistence, registry
 preservation and control exclusion. Actual radio/WS behavior requires hardware.
 
@@ -162,3 +162,19 @@ native backend outputs. For example, JK cloud `cap` represents design capacity,
 and its temperature ordering differs from native sensor indices. Local native
 readings avoid applying those cloud conventions to reference sensor names.
 Local MQ powers retain fractional watts; cloud integer power is the fallback.
+
+## MQ without BMS
+
+Version `1.2.1` adds **MQ only (home_mq.yaml)** to setup and Configure.
+For `solardongle/home_mq.yaml` firmware, select this profile and enter
+`http://<dongle-ip>:8001` with the dongle's `dg-xxxxxx` Device ID.
+It exposes MQ controller readings, dongle temperature/uptime, Wi-Fi signal,
+device information and online status without BMS entities or inverter controls.
+MQ battery voltage/current/power remain available from the controller without a BMS.
+Local power readings retain fractional watts; cloud telemetry uses the existing
+MQ fallback, while native dongle temperature/uptime require the local endpoint.
+
+Existing profiles and their defaults are preserved. Switching to MQ only disables
+existing BMS entities and retains their history. Switching back restores entities
+disabled by the integration and preserves user-disabled choices. Shared MQ and
+dongle entities keep their identities across MQ profile changes.

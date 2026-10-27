@@ -11,10 +11,10 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from custom_components.solarproject import sensor, binary_sensor, config_flow, settings
+from custom_components.solarproject import sensor, binary_sensor, config_flow, settings, switch, number, select
 from custom_components.solarproject.const import (
     BMS_SLOTS, CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE,
-    INVERTER_FIELDS, MQ_FIELDS, PROFILE_MQ,
+    INVERTER_FIELDS, MQ_FIELDS, MQ_TEXT_FIELDS, MQ_DONGLE_FIELDS, PROFILE_MQ, PROFILE_MQ_ONLY,
     PROFILE_INVERTER, home_native_keys, is_mq_profile,
 )
 from custom_components.solarproject.coordinator import SolarProjectCoordinator
@@ -61,6 +61,96 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
         with patch.object(settings, "get_coordinator") as get:
             settings.setup_controls(self.hass, self.entry, lambda entities: self.fail("MQ controls"), "number", object)
             get.assert_not_called()
+
+    async def test_mq_only_entities_values_and_no_dynamic_bms(self):
+        # Replay before platform setup must not discover cells for MQ only.
+        self.coordinator._process_message({"type": "bmsData", "bmsType": "bms1", "data": {"vcells": [3300]}})
+        entities, binary = await self.entities(PROFILE_MQ_ONLY)
+        self.assertTrue(is_mq_profile(self.entry))
+        expected = set(MQ_FIELDS) | set(MQ_TEXT_FIELDS) | set(MQ_DONGLE_FIELDS) | {"wifi_signal"}
+        expected.update(key for key in sensor.TEXT_FIELDS if key.startswith("device_info_"))
+        self.assertEqual(set(entities), expected)
+        self.assertEqual(set(binary), {"online"})
+        self.assertIsNone(self.coordinator._cell_adder)
+        self.coordinator._process_message({"type": "ivtdata", "data": {
+            "pdc1": 800, "pbat": -750, "bcur": -15, "pvtd": 1234, "pvall": 98.765,
+            "status_text": "Charging", "vbat": 50,
+        }})
+        for key, value in {"mq_pdc1": 800, "mq_pbat": 750, "mq_bcur": 15,
+                           "mq_pvtd": 1.234, "mq_pvall": 98.765, "mq_vbat": 50}.items():
+            self.assertEqual(entities[key].native_value, value)
+        self.assertEqual(entities["mq_status_text"].native_value, "Charging")
+        self.assertEqual(entities["mq_pvtd"].native_unit_of_measurement, "kWh")
+        self.coordinator._process_message({"type": "homeSensorData", "deviceId": "dg-aabbcc", "data": {
+            "mq_native_pv_power": 800.24, "mq_native_battery_power": 750.8,
+            "dongle_temperature": 38.5, "dongle_uptime": 900,
+            "bms1_native_cell_voltage_1": 3.28,
+        }})
+        self.coordinator._process_message({"type": "bmsData", "data": {"vcells": [3300, 3310]}})
+        await asyncio.sleep(0)
+        self.assertIsNone(self.coordinator._cell_adder)
+        for key, value in {"mq_pdc1": 800.24, "mq_pbat": 750.8,
+                           "dongle_temperature": 38.5, "dongle_uptime": 900}.items():
+            self.assertEqual(entities[key].native_value, value)
+        self.assertEqual(entities["wifi_signal"].name, "Dongle WiFi Signal Strength")
+        with patch.object(settings, "get_coordinator") as get:
+            for platform in ("number", "select", "switch"):
+                settings.setup_controls(self.hass, self.entry, self.fail, platform, object)
+            get.assert_not_called()
+        for module in (switch, number, select):
+            with patch.object(module, "get_coordinator", return_value=self.coordinator, create=True):
+                await module.async_setup_entry(self.hass, self.entry, lambda values: self.assertEqual(list(values), []))
+        mq, _ = await self.entities(PROFILE_MQ)
+        for key in expected:
+            self.assertEqual(entities[key].unique_id, mq[key].unique_id)
+
+    async def test_mq_only_registry_transitions(self):
+        for source in (PROFILE_MQ, PROFILE_INVERTER):
+            for target in (PROFILE_MQ_ONLY, source):
+                self.entry.data[CONF_SENSOR_PROFILE] = target
+                bms_disabled = None if target == PROFILE_MQ_ONLY else er.RegistryEntryDisabler.INTEGRATION
+                entries = [SimpleNamespace(
+                    platform="solarproject", domain=domain, unique_id=f"solarproject_dg-aabbcc_{key}",
+                    original_name=name, entity_id=f"{domain}.test_{key}", disabled_by=bms_disabled,
+                ) for domain, key, name in (
+                    ("sensor", "bms1_soc", "bms1 state of charge"),
+                    ("sensor", "bms1_vcells_1", "bms1 cell voltage 1"),
+                    ("binary_sensor", "bms1_connected", "bms1 online status"),
+                    ("switch", "bms1_chg", "bms1 charging"),
+                )]
+                entries.append(SimpleNamespace(
+                    platform="solarproject", domain="sensor", unique_id="solarproject_dg-aabbcc_bms2_soc",
+                    original_name="bms2 state of charge", entity_id="sensor.user_disabled", disabled_by=er.RegistryEntryDisabler.USER,
+                ))
+                registry = MagicMock()
+                with patch("custom_components.solarproject.entity.entity_registry.async_get", return_value=registry), patch(
+                    "custom_components.solarproject.entity.entity_registry.async_entries_for_config_entry", return_value=entries
+                ):
+                    async_apply_sensor_profile(self.hass, self.entry, self.coordinator)
+                self.assertEqual(registry.async_update_entity.call_count, 4)
+                disabled = er.RegistryEntryDisabler.INTEGRATION if target == PROFILE_MQ_ONLY else None
+                for entry in entries[:4]:
+                    registry.async_update_entity.assert_any_call(entry.entity_id, disabled_by=disabled)
+
+    async def test_mq_only_setup_and_options(self):
+        self.assertEqual(config_flow._profile_selector().config["options"], [PROFILE_INVERTER, PROFILE_MQ, PROFILE_MQ_ONLY])
+        flow = config_flow.SolarProjectConfigFlow()
+        flow.hass = self.hass
+        with patch.object(flow, "async_set_unique_id", new_callable=AsyncMock), patch.object(flow, "_abort_if_unique_id_configured"), patch.object(
+            config_flow, "_validate_connection", new_callable=AsyncMock
+        ):
+            result = await flow.async_step_user({"server": "http://dongle:8001", "device_id": "dg-aabbcc", CONF_SENSOR_PROFILE: PROFILE_MQ_ONLY})
+        self.assertEqual(result["data"][CONF_SENSOR_PROFILE], PROFILE_MQ_ONLY)
+        self.entry.data[CONF_SENSOR_PROFILE] = PROFILE_MQ_ONLY
+        options = config_flow.SolarProjectOptionsFlow()
+        options.hass = MagicMock()
+        options.hass.config_entries.async_reload = AsyncMock()
+        with patch.object(config_flow.SolarProjectOptionsFlow, "config_entry", new_callable=PropertyMock, return_value=self.entry):
+            form = await options.async_step_init()
+            self.assertEqual(form["data_schema"]({"server": "http://dongle:8001"})[CONF_SENSOR_PROFILE], PROFILE_MQ_ONLY)
+            await options.async_step_init({"server": "http://dongle:8001", CONF_SENSOR_PROFILE: PROFILE_MQ_ONLY})
+        self.assertEqual(options.hass.config_entries.async_update_entry.call_args.kwargs["data"][CONF_SENSOR_PROFILE], PROFILE_MQ_ONLY)
+        options.hass.config_entries.async_reload.assert_awaited_once_with("test")
 
     async def test_mq_units_signs_text_and_unknown_values(self):
         entities, _ = await self.entities(PROFILE_MQ)

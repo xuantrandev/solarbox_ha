@@ -24,6 +24,7 @@ from .const import (
     BIN_ONLINE,
     BMS_SLOTS,
     is_mq_profile,
+    has_bms,
 )
 from .coordinator import SolarProjectCoordinator
 from .entity import SolarEntityNaming, entity_unique_id
@@ -54,9 +55,9 @@ async def async_setup_entry(
         entities = entities[:1]  # Dongle connectivity; Lux cloud does not apply.
         entities.extend(
             SolarBinarySensor(coordinator, entry, f"bms{slot}_native_balancing", f"bms{slot} balancing")
-            for slot in BMS_SLOTS
+            for slot in (BMS_SLOTS if has_bms(entry) else ())
         )
-    for slot in BMS_SLOTS:
+    for slot in (BMS_SLOTS if has_bms(entry) else ()):
         entities.append(
             SolarBinarySensor(
                 coordinator, entry, BIN_BMS_CONNECTED.format(n=slot),

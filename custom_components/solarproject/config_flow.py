@@ -33,6 +33,7 @@ from .const import (
     PROFILE_INVERTER,
     PROFILE_MQ,
     PROFILE_MQ_ONLY,
+    PROFILE_PIP,
     CONF_FAST_DATA_INTERVAL,
     CONF_SENSOR_PREFIX,
     CONF_SERVER,
@@ -48,7 +49,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _profile_selector() -> SelectSelector:
     return SelectSelector(SelectSelectorConfig(
-        options=[PROFILE_INVERTER, PROFILE_MQ, PROFILE_MQ_ONLY], translation_key="sensor_profile"
+        options=[PROFILE_INVERTER, PROFILE_MQ, PROFILE_MQ_ONLY, PROFILE_PIP], translation_key="sensor_profile"
     ))
 
 

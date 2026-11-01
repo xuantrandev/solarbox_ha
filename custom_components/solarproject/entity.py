@@ -31,6 +31,8 @@ from .const import (
     MQ_TEXT_FIELDS,
     is_mq_profile,
     has_bms,
+    is_pip_profile,
+    PIP_FIELDS,
     mq_native_fields,
 )
 
@@ -78,6 +80,9 @@ def _known_names(entry=None) -> dict[str, dict[str, str]]:
     }
     for fields in (MQ_FIELDS, MQ_TEXT_FIELDS, mq_native_fields(), mq_native_fields(text=True)):
         sensors.update({key: spec.name for key, spec in fields.items()})
+    if entry is not None and is_pip_profile(entry):
+        sensors.update({key: spec.name for key, spec in PIP_FIELDS.items()})
+    sensors.update({key: spec.name for key, spec in PIP_FIELDS.items() if key.startswith("pip_")})
     sensors["wifi_signal"] = ("Dongle WiFi Signal Strength" if entry is not None and is_mq_profile(entry) else WIFI_SIGNAL_DEF.name)
     binary = {
         BIN_ONLINE: "Online",
@@ -213,7 +218,11 @@ def async_apply_sensor_profile(hass, entry, coordinator):
             continue
         key = identity[1]
         is_inverter = key in inverter_keys or key.startswith("ctl_")
-        if key.startswith("bms") and not has_bms(entry):
+        if is_pip_profile(entry):
+            enabled = (key in PIP_FIELDS or key.startswith("device_info_") or key in ("wifi_signal", BIN_ONLINE))
+        elif key.startswith("pip_"):
+            enabled = False
+        elif key.startswith("bms") and not has_bms(entry):
             enabled = False
         elif key in mq_keys or is_inverter:
             enabled = (key in mq_keys) == is_mq_profile(entry)

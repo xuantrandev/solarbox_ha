@@ -21,6 +21,7 @@ CONF_SENSOR_PROFILE = "sensor_profile"
 PROFILE_INVERTER = "inverter_bms"
 PROFILE_MQ = "mq_bms"
 PROFILE_MQ_ONLY = "mq_only"
+PROFILE_PIP = "pip_only"
 DEFAULT_SENSOR_PROFILE = PROFILE_INVERTER
 
 DEFAULT_SERVER = "https://ivbms.solarbox.uk"
@@ -126,6 +127,19 @@ WIFI_SIGNAL_DEF = SensorDef(
     SensorStateClass.MEASUREMENT, "mdi:wifi",
 )
 
+# home_pip.yaml has one PV input and no BMS. PIP mxchg/mxdchg are
+# deciamps, unlike the SVE fields with the same wire names (watts).
+PIP_FIELDS = {
+    key: spec for fields in (INVERTER_FIELDS, STATISTIC_FIELDS)
+    for key, spec in fields.items()
+    if key in {"vdc1", "pdc1", "pv_power", "vbat", "soc", "fgr", "vgr",
+               "pgr", "pbat", "bcur", "pl", "pvtd", "pvall", "lall", "dctemp"}
+}
+PIP_FIELDS.update({
+    "pip_mxchg": SensorDef("Ivt Max Charge Current", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, scale=0.1),
+    "pip_mxdchg": SensorDef("Ivt Max Discharge Current", "A", SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT, scale=0.1),
+})
+
 # ── BMS scalar fields (per slot; key is the raw JSON key inside bmsN) ────────
 # Names follow home_senjkha.yaml and release_senjkha.yaml: "bms1 total
 # voltage", "bms1 state of charge", "bms1 temperature sensor 1", ...
@@ -228,9 +242,13 @@ def is_mq_profile(entry):
     return entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) in (PROFILE_MQ, PROFILE_MQ_ONLY)
 
 
+def is_pip_profile(entry):
+    return entry.data.get(CONF_SENSOR_PROFILE) == PROFILE_PIP
+
+
 def has_bms(entry):
     """Whether this profile creates BMS entities and discovers cells."""
-    return entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) != PROFILE_MQ_ONLY
+    return entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) not in (PROFILE_MQ_ONLY, PROFILE_PIP)
 
 
 def mq_native_fields(text=False):

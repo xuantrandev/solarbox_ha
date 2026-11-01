@@ -25,6 +25,7 @@ from .const import (
     BMS_SLOTS,
     is_mq_profile,
     has_bms,
+    is_pip_profile,
 )
 from .coordinator import SolarProjectCoordinator
 from .entity import SolarEntityNaming, entity_unique_id
@@ -51,6 +52,8 @@ async def async_setup_entry(
             coordinator, entry, BIN_FIX_LUX_SERVER, "Lux Cloud Fix",
         ),
     ]
+    if is_pip_profile(entry):
+        entities = entities[:1]
     if is_mq_profile(entry):
         entities = entities[:1]  # Dongle connectivity; Lux cloud does not apply.
         entities.extend(

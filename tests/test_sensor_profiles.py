@@ -15,7 +15,7 @@ from custom_components.solarproject import sensor, binary_sensor, config_flow, s
 from custom_components.solarproject.const import (
     BMS_SLOTS, CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE,
     INVERTER_FIELDS, MQ_FIELDS, MQ_TEXT_FIELDS, MQ_DONGLE_FIELDS, PROFILE_MQ, PROFILE_MQ_ONLY,
-    PROFILE_INVERTER, home_native_keys, is_mq_profile,
+    PROFILE_INVERTER, PROFILE_PIP, PIP_FIELDS, home_native_keys, is_mq_profile,
 )
 from custom_components.solarproject.coordinator import SolarProjectCoordinator
 from custom_components.solarproject.entity import (
@@ -133,7 +133,7 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
                     registry.async_update_entity.assert_any_call(entry.entity_id, disabled_by=disabled)
 
     async def test_mq_only_setup_and_options(self):
-        self.assertEqual(config_flow._profile_selector().config["options"], [PROFILE_INVERTER, PROFILE_MQ, PROFILE_MQ_ONLY])
+        self.assertEqual(config_flow._profile_selector().config["options"], [PROFILE_INVERTER, PROFILE_MQ, PROFILE_MQ_ONLY, PROFILE_PIP])
         flow = config_flow.SolarProjectConfigFlow()
         flow.hass = self.hass
         with patch.object(flow, "async_set_unique_id", new_callable=AsyncMock), patch.object(flow, "_abort_if_unique_id_configured"), patch.object(
@@ -151,6 +151,48 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
             await options.async_step_init({"server": "http://dongle:8001", CONF_SENSOR_PROFILE: PROFILE_MQ_ONLY})
         self.assertEqual(options.hass.config_entries.async_update_entry.call_args.kwargs["data"][CONF_SENSOR_PROFILE], PROFILE_MQ_ONLY)
         options.hass.config_entries.async_reload.assert_awaited_once_with("test")
+
+    async def test_pip_profile(self):
+        entities, binary = await self.entities(PROFILE_PIP)
+        self.assertEqual(set(binary), {"online"})
+        self.assertTrue(set(PIP_FIELDS) <= set(entities))
+        self.assertFalse(any(key.startswith("bms") for key in entities))
+        self.assertIsNone(self.coordinator._cell_adder)
+        self.coordinator._process_message({"type": "ivtdata", "data": {
+            "mxchg": 600, "mxdchg": 1000, "pbat": -750, "bcur": -15,
+            "pvtd": 1234, "pgr": 900, "pgr_valid": 1, "pdc1": 800,
+        }})
+        for key, expected in {"pip_mxchg": 60, "pip_mxdchg": 100, "pbat": 750,
+                              "bcur": 15, "pvtd": 1.234, "pgr": 900, "pv_power": 800}.items():
+            self.assertAlmostEqual(entities[key].native_value, expected)
+        self.assertEqual(entities["pip_mxchg"].native_unit_of_measurement, "A")
+        self.coordinator._process_message({"type": "ivtdata", "data": {"pgr_valid": 0}})
+        self.assertIsNone(entities["pgr"].native_value)
+        with patch.object(settings, "get_coordinator") as get:
+            settings.setup_controls(self.hass, self.entry, lambda entities: self.fail("PIP controls"), "number", object)
+            get.assert_not_called()
+
+    async def test_pip_registry_profile_switch(self):
+        entries = [SimpleNamespace(
+            platform="solarproject", domain="sensor", unique_id=f"solarproject_dg-aabbcc_{key}",
+            original_name=name, entity_id=f"sensor.test_{key}", disabled_by=disabled,
+        ) for key, name, disabled in (
+            ("pip_mxchg", "Ivt Max Charge Current", er.RegistryEntryDisabler.INTEGRATION),
+            ("mxchg", "Ivt Max Charge Power", None),
+            ("bms1_soc", "bms1 state of charge", None),
+            ("pdc1", "Ivt PV1 Power", None),
+            ("pip_mxdchg", "Ivt Max Discharge Current", er.RegistryEntryDisabler.USER),
+        )]
+        self.entry.data[CONF_SENSOR_PROFILE] = PROFILE_PIP
+        registry = MagicMock()
+        with patch("custom_components.solarproject.entity.entity_registry.async_get", return_value=registry), patch(
+            "custom_components.solarproject.entity.entity_registry.async_entries_for_config_entry", return_value=entries
+        ):
+            async_apply_sensor_profile(self.hass, self.entry, self.coordinator)
+        self.assertEqual(registry.async_update_entity.call_count, 3)
+        registry.async_update_entity.assert_any_call("sensor.test_pip_mxchg", disabled_by=None)
+        registry.async_update_entity.assert_any_call("sensor.test_mxchg", disabled_by=er.RegistryEntryDisabler.INTEGRATION)
+        registry.async_update_entity.assert_any_call("sensor.test_bms1_soc", disabled_by=er.RegistryEntryDisabler.INTEGRATION)
 
     async def test_mq_units_signs_text_and_unknown_values(self):
         entities, _ = await self.entities(PROFILE_MQ)

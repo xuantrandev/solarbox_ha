@@ -40,7 +40,8 @@
       "options": {
         "inverter_bms": "Inverter + BMS (home_senble.yaml)",
         "mq_bms": "MQ + BMS (home_mq2ha.yaml)",
-        "mq_only": "MQ only (home_mq.yaml)"
+        "mq_only": "MQ only (home_mq.yaml)",
+        "pip_only": "PIP inverter only (home_pip.yaml)"
       }
     }
   }

@@ -4,14 +4,14 @@ from __future__ import annotations
 from homeassistant.helpers.entity import Entity, EntityCategory
 
 from . import get_coordinator
-from .const import is_mq_profile
+from .const import is_mq_profile, is_pip_profile
 from .entity import SolarEntityNaming, entity_unique_id
 from .sensor import _device_info
 
 
 def setup_controls(hass, entry, async_add_entities, platform, entity_class):
     """Listen before or after the first catalog; add each key once per platform load."""
-    if is_mq_profile(entry):
+    if is_mq_profile(entry) or is_pip_profile(entry):
         return
     coordinator = get_coordinator(hass, entry)
     created = set()

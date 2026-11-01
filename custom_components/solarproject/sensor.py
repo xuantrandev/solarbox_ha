@@ -38,6 +38,8 @@ from .const import (
     MQ_TEXT_FIELDS,
     is_mq_profile,
     has_bms,
+    is_pip_profile,
+    PIP_FIELDS,
     MQ_DONGLE_FIELDS,
     mq_native_fields,
 )
@@ -64,6 +66,10 @@ async def async_setup_entry(
             **(mq_native_fields(text=True) if has_bms(entry) else {}),
         }
         wifi_spec = WIFI_SIGNAL_DEF._replace(name="Dongle WiFi Signal Strength")
+    elif is_pip_profile(entry):
+        numeric = PIP_FIELDS
+        texts = {key: spec for key, spec in TEXT_FIELDS.items() if key.startswith("device_info_")}
+        wifi_spec = WIFI_SIGNAL_DEF
     else:
         numeric = {**INVERTER_FIELDS, **STATISTIC_FIELDS}
         texts = TEXT_FIELDS
@@ -166,6 +172,8 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
             value = self._coordinator.data[native_key]
             return round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
         key = self._key[3:] if self._key.startswith("mq_") else self._key
+        if is_pip_profile(self._entry):
+            key = key.removeprefix("pip_")
         value = self._coordinator.data.get(key)
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             return None
@@ -202,6 +210,8 @@ class SolarSensorEntity(_SolarSensorBase):
     def native_value(self) -> float | None:
         if self._offline_zero:
             return 0
+        if is_pip_profile(self._entry) and self._key == "pgr" and self._coordinator.data.get("pgr_valid") != 1:
+            return None
         if self._key != "pv_power":
             return super().native_value
         powers = [

@@ -1,5 +1,17 @@
 # SolarProject Home Assistant integration
 
+For `solardongle/home_pip.yaml`, set the server to `http://<dongle-ip>:8001`,
+enter its `dg-xxxxxx` device ID, and select **PIP inverter only (home_pip.yaml)**.
+Telemetry is pushed at the configured PIP polling interval (2 seconds by default);
+the fast-data interval may be zero. Cloud MQTT can remain enabled, and a broker
+outage does not reboot this local variant.
+
+The PIP profile exposes one PV input, battery, grid/load, energy statistics,
+temperature, charge/discharge current limits, Wi-Fi and dongle metadata. Current
+limits are converted from deciamps to amps. Invalid grid estimates report unknown.
+It creates no BMS or Lux cloud entities. PIP inverter settings and its separate
+version-3 energy accounting stream are not supported by the local endpoint.
+
 Connect Home Assistant directly to a `home_senble` dongle or use the existing
 `solardongleweb` monitoring endpoint. Updated local firmware exposes 18 inverter
 settings over WebSocket: 14 numbers, three selects and one switch. Existing

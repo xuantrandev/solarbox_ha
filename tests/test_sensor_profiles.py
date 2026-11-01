@@ -154,6 +154,7 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
 
     async def test_mq_units_signs_text_and_unknown_values(self):
         entities, _ = await self.entities(PROFILE_MQ)
+        self.coordinator._process_message({"type": "deviceStatus", "status": "online"})
         self.assertIsNone(entities["mq_bcur"].native_value)
         self.coordinator._process_message({"type": "ivtdata", "datatype": "invtlive", "data": {
             "vdc1": 80, "idc1": 10, "pdc1": 800, "vbat": 50, "bcur": -15,
@@ -174,6 +175,7 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
 
     async def test_native_values_cells_and_foreign_device_rejection(self):
         entities, binary = await self.entities(PROFILE_MQ)
+        self.coordinator._process_message({"type": "deviceStatus", "status": "online"})
         payload = {"type": "homeSensorData", "deviceId": "dg-other", "data": {
             "bms1_native_design_capacity": 280.5, "bms1_native_cell_resistance_1": 0.003,
             "bms1_native_software_version": "v1", "bms1_native_balancing": True,
@@ -210,6 +212,84 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
         payload["data"] = {"bms1_native_total_voltage": None}
         self.coordinator._process_message(payload)
         self.assertIsNone(entities["bms1_vbat"].native_value)
+
+    async def test_mq_offline_zero_and_recovery(self):
+        for profile in (PROFILE_MQ_ONLY, PROFILE_MQ):
+            with self.subTest(profile=profile):
+                self.coordinator.data.clear()
+                self.coordinator._set_online(False)
+                entities, binary = await self.entities(profile)
+                if profile == PROFILE_MQ:
+                    # Both native cells and the raw fallback above cell 16.
+                    for index in (1, 17):
+                        cell = sensor.BmsCellSensor(self.coordinator, "bms1", index, self.entry)
+                        entities[cell._key] = cell
+                numeric = {key: entity for key, entity in entities.items()
+                           if not isinstance(entity, (sensor.SolarTextSensor, sensor.BmsMacSensor))}
+                texts = {key: entity for key, entity in entities.items() if key not in numeric}
+                for entity in numeric.values():
+                    self.assertTrue(entity.available)
+                    self.assertEqual(entity.native_value, 0)
+                for entity in texts.values():
+                    self.assertFalse(entity.available)
+                    self.assertIsNone(entity.native_value)
+                self.assertTrue(binary["online"].available)
+                self.assertFalse(binary["online"].is_on)
+
+                self.coordinator._process_message({"type": "deviceStatus", "status": "online"})
+                for entity in numeric.values():
+                    self.assertTrue(entity.available)
+                    self.assertIsNone(entity.native_value)
+                # Populate every field, including raw, native, derived and text paths.
+                self.coordinator.data.update({key: 12.3456 for key in entities})
+                self.coordinator.data.update({key: 12.3456 for key in home_native_keys()})
+                self.coordinator.data.update({
+                    "pdc1": 123, "pbat": -45, "bcur": -2, "pvtd": 1234,
+                    "pvall": 98.765, "status_text": "Charging",
+                    "bms1_native_power": -56.789, "wifi_signal": -65,
+                })
+                online_values = {key: entity.native_value for key, entity in entities.items()}
+                cached = dict(self.coordinator.data)
+                self.assertEqual(online_values["mq_pvtd"], 1.234)
+                self.assertEqual(online_values["mq_pdc1"], 12.346)
+                self.assertEqual(online_values["mq_bcur"], 2)
+                if profile == PROFILE_MQ:
+                    self.assertEqual(online_values["bms1_discharging_power"], 56.789)
+                    self.assertEqual(online_values["bms1_vcells_1"], 12.346)
+                    self.assertEqual(online_values["bms1_vcells_17"], 0.012)
+
+                # Explicit device offline and transport disconnect use the same state helper.
+                for disconnect in (
+                    lambda: self.coordinator._process_message({"type": "deviceStatus", "status": "offline"}),
+                    lambda: self.coordinator._set_online(False),
+                ):
+                    disconnect()
+                    for key, entity in numeric.items():
+                        self.assertTrue(entity.available, key)
+                        self.assertEqual(entity.native_value, 0, key)
+                    for key, entity in texts.items():
+                        self.assertFalse(entity.available, key)
+                        self.assertEqual(entity.native_value, online_values[key], key)
+                    for key, entity in binary.items():
+                        self.assertEqual(entity.available, key == "online", key)
+                    self.assertFalse(binary["online"].is_on)
+                    self.assertEqual(self.coordinator.data, cached)
+                    self.coordinator._process_message({"type": "deviceStatus", "status": "online"})
+                    for key, entity in entities.items():
+                        self.assertTrue(entity.available, key)
+                        self.assertEqual(entity.native_value, online_values[key], key)
+
+    async def test_inverter_offline_availability_unchanged(self):
+        entities, _ = await self.entities(PROFILE_INVERTER)
+        cell = sensor.BmsCellSensor(self.coordinator, "bms1", 1, self.entry)
+        entities[cell._key] = cell
+        self.coordinator.data.update({"pdc1": 123, "bms1_p": -45, "bms1_vcells_1": 3300})
+        self.coordinator._set_online(True)
+        values = {key: entity.native_value for key, entity in entities.items()}
+        self.coordinator._set_online(False)
+        for key, entity in entities.items():
+            self.assertFalse(entity.available, key)
+            self.assertEqual(entity.native_value, values[key], key)
 
     async def test_reference_sensor_name_parity(self):
         reference = Path("/firmware/release_mqjkha.yaml")

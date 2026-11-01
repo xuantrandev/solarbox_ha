@@ -143,6 +143,13 @@ in native units and must not receive the raw BMS scaling a second time. MQ
 charging current/power are exposed as positive values. MQTT payloads retain the
 existing negative-charging convention and daily PV Wh units.
 
+For both **MQ + BMS** and **MQ only**, all numeric sensors remain available
+and report `0` while the dongle is offline, including during initial connection
+and WebSocket disconnections. This includes energy counters, Wi-Fi signal,
+uptime, and existing BMS cell sensors. Cached readings are preserved and resume
+when the dongle is online; fields without readings then remain unknown. Text
+and binary sensors retain their existing availability behavior.
+
 Run the profile tests in an isolated HA container, without mounting a live HA
 configuration or restarting an installed instance (run from `solarbox_ha`):
 

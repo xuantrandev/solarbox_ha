@@ -2,8 +2,8 @@
 
 Creates one entity per known field of the solardongleweb payload: inverter
 live data, lifetime statistics, BMS scalars per slot, dynamic BMS cell
-voltages, and read-only text fields. Entities stay "unknown" until their
-field first arrives over the WebSocket.
+voltages, and read-only text fields. Online entities stay "unknown" until their
+field first arrives over the WebSocket. Offline MQ numeric sensors report zero.
 """
 
 from __future__ import annotations
@@ -107,6 +107,7 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
     """Base entity bound to the coordinator's latest-state map."""
 
     _attr_should_poll = False
+    _is_numeric = True
 
     def __init__(
         self,
@@ -147,13 +148,19 @@ class _SolarSensorBase(SolarEntityNaming, SensorEntity):
 
     @property
     def available(self):
-        return self._coordinator.online
+        return self._coordinator.online or (self._is_numeric and is_mq_profile(self._entry))
+
+    @property
+    def _offline_zero(self) -> bool:
+        return self._is_numeric and is_mq_profile(self._entry) and not self._coordinator.online
 
     def _handle_update(self) -> None:
         self.async_write_ha_state()
 
     @property
     def native_value(self) -> float | None:
+        if self._offline_zero:
+            return 0
         native_key = MQ_NATIVE_POWER_KEYS.get(self._key)
         if native_key and native_key in self._coordinator.data:
             value = self._coordinator.data[native_key]
@@ -193,6 +200,8 @@ class SolarSensorEntity(_SolarSensorBase):
 
     @property
     def native_value(self) -> float | None:
+        if self._offline_zero:
+            return 0
         if self._key != "pv_power":
             return super().native_value
         powers = [
@@ -232,6 +241,8 @@ class BmsScalarSensor(_SolarSensorBase):
 
     @property
     def native_value(self) -> float | None:
+        if self._offline_zero:
+            return 0
         if self._field not in ("charging_power", "discharging_power"):
             if is_mq_profile(self._entry) and self._field in BMS_NATIVE_KEYS:
                 native = BMS_NATIVE_KEYS[self._field]
@@ -282,6 +293,8 @@ class BmsCellSensor(_SolarSensorBase):
 
     @property
     def native_value(self) -> float | None:
+        if self._offline_zero:
+            return 0
         if is_mq_profile(self._entry) and self._cell_index <= 16:
             value = self._coordinator.data.get(f"{self._slot}_native_cell_voltage_{self._cell_index}")
             return round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
@@ -290,6 +303,8 @@ class BmsCellSensor(_SolarSensorBase):
 
 class BmsMacSensor(_SolarSensorBase):
     """Entity for one BMS slot's MAC address (text)."""
+
+    _is_numeric = False
 
     def __init__(
         self,
@@ -320,6 +335,8 @@ class BmsMacSensor(_SolarSensorBase):
 
 class SolarTextSensor(_SolarSensorBase):
     """Read-only string field (inverter type, serial, IPs, device info)."""
+
+    _is_numeric = False
 
     def __init__(
         self, coordinator: SolarProjectCoordinator, key: str, entry: ConfigEntry,

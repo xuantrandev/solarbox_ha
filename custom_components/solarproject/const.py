@@ -161,6 +161,17 @@ BMS_FIELDS: dict[str, SensorDef] = {
     "t5": SensorDef("bms{n} temperature sensor 5", "°C", SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT, "mdi:thermometer", 0.1),
 }
 
+# Stable entity keys above preserve existing names, IDs and registry settings.
+# Wire temperatures follow the webapp: MOS=t0, probes=t1/t2/t4/t5.
+# t3 is deliberately ignored because it can repeat the MOS reading.
+BMS_TEMPERATURE_SOURCES = {
+    "t0": "t1",
+    "t1": "t2",
+    "t2": "t4",
+    "t3": "t5",
+    "t4": "t0",
+}
+
 BMS_CELL_DEF = SensorDef(
     "bms{n} cell voltage {i}",
     "V",

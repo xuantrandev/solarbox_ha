@@ -209,7 +209,7 @@ def async_apply_sensor_profile(hass, entry, coordinator):
     inverter_keys = set(INVERTER_FIELDS) | set(STATISTIC_FIELDS) | {
         "ivttype", "dongle_sn", "lux_server_ip", BIN_LUX_SERVER, BIN_FIX_LUX_SERVER,
     }
-    inverter_keys.update(f"bms{slot}_t5" for slot in BMS_SLOTS)
+    retired_temperatures = {f"bms{slot}_t5" for slot in BMS_SLOTS}
     for registered in entity_registry.async_entries_for_config_entry(registry, entry.entry_id):
         if registered.platform != DOMAIN:
             continue
@@ -221,6 +221,8 @@ def async_apply_sensor_profile(hass, entry, coordinator):
         if is_pip_profile(entry):
             enabled = (key in PIP_FIELDS or key.startswith("device_info_") or key in ("wifi_signal", BIN_ONLINE))
         elif key.startswith("pip_"):
+            enabled = False
+        elif key in retired_temperatures:
             enabled = False
         elif key.startswith("bms") and not has_bms(entry):
             enabled = False

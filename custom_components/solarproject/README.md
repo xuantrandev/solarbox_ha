@@ -36,6 +36,15 @@ until those fields arrive. Home Assistant may display toggles, but turn-on,
 turn-off and toggle requests raise a read-only error without sending commands.
 The existing charging/discharging binary sensors remain available.
 
+Version `1.2.3` corrects inverter/BMS temperatures to match the webapp: MOS
+(`power tube temperature`) uses raw `t0`, and probes 1–4 use `t1`, `t2`, `t4`,
+and `t5`, all scaled by 0.1. Raw `t3` is ignored because it can duplicate MOS.
+Existing sensor names and IDs are preserved; obsolete probe-5 entities are
+disabled while retaining their registry records and history. Previously recorded
+incorrect readings are not rewritten. The MQ profile retains its native mapping.
+Unused probes still display the reported zero, as in the webapp; this is not
+automatic sensor-presence detection. Restart HA after installing the update.
+
 Entity names match `solardongle/home_senjkha.yaml` wherever a corresponding
 entity exists, including inherited BMS definitions (for example, `Ivt PV Today
 Lux`, `bms1 total voltage`, and `Ivt Work Mode`). Entity IDs use the configured sensor

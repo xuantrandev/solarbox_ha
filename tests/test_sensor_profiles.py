@@ -104,6 +104,55 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
         for key in expected:
             self.assertEqual(entities[key].unique_id, mq[key].unique_id)
 
+    async def test_inverter_temperatures_match_webapp_and_preserve_identities(self):
+        entities, _ = await self.entities(PROFILE_INVERTER)
+        for slot in BMS_SLOTS:
+            self.assertNotIn(f"bms{slot}_t5", entities)
+            self.assertIsNone(entities[f"bms{slot}_t4"].native_value)
+        # Captured BMS 2 payload: raw t3 repeats MOS; absent extra probes are zero.
+        self.coordinator._process_message({"type": "bmsData", "bmsType": "bms2", "data": {
+            "t0": 427, "t1": 366, "t2": 353, "t3": 427, "t4": 0, "t5": 0,
+        }})
+        for key, name, expected in (
+            ("t0", "temperature sensor 1", 36.6),
+            ("t1", "temperature sensor 2", 35.3),
+            ("t2", "temperature sensor 3", 0),
+            ("t3", "temperature sensor 4", 0),
+            ("t4", "power tube temperature", 42.7),
+        ):
+            entity = entities[f"bms2_{key}"]
+            self.assertEqual(entity.native_value, expected)
+            self.assertEqual(entity.name, f"bms2 {name}")
+            self.assertEqual(entity.unique_id, f"solarproject_dg-aabbcc_bms2_{key}")
+        self.assertIsNone(entities["bms1_t4"].native_value)
+        # All four probes remain distinct; legitimate zero/negative readings survive.
+        self.coordinator._process_message({"type": "bmsData", "bmsType": "bms1", "data": {
+            "t0": 386, "t1": -50, "t2": 0, "t3": 999, "t4": 356, "t5": 378,
+        }})
+        self.assertEqual([entities[f"bms1_t{i}"].native_value for i in range(5)],
+                         [-5, 0, 35.6, 37.8, 38.6])
+        self.coordinator._process_message({"type": "bmsData", "bmsType": "bms3", "data": {"t0": True}})
+        self.assertIsNone(entities["bms3_t4"].native_value)
+
+    async def test_retired_temperature_registry_preserves_user_choices(self):
+        for profile in (PROFILE_INVERTER, PROFILE_MQ, PROFILE_MQ_ONLY, PROFILE_PIP):
+            self.entry.data[CONF_SENSOR_PROFILE] = profile
+            entries = [SimpleNamespace(
+                platform="solarproject", domain="sensor", unique_id=f"solarproject_dg-aabbcc_bms{slot}_t5",
+                original_name=f"bms{slot} temperature sensor 5", entity_id=f"sensor.old_probe_{slot}",
+                disabled_by=disabled,
+            ) for slot, disabled in (
+                (1, None), (2, er.RegistryEntryDisabler.USER), (3, er.RegistryEntryDisabler.INTEGRATION),
+            )]
+            registry = MagicMock()
+            with patch("custom_components.solarproject.entity.entity_registry.async_get", return_value=registry), \
+                 patch("custom_components.solarproject.entity.entity_registry.async_entries_for_config_entry", return_value=entries):
+                async_apply_sensor_profile(self.hass, self.entry, self.coordinator)
+            registry.async_update_entity.assert_called_once_with(
+                "sensor.old_probe_1", disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+            )
+            registry.async_remove.assert_not_called()
+
     async def test_mq_only_registry_transitions(self):
         for source in (PROFILE_MQ, PROFILE_INVERTER):
             for target in (PROFILE_MQ_ONLY, source):

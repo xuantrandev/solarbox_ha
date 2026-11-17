@@ -266,6 +266,36 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
                 await self.hass.async_block_till_done()
                 self.assertEqual(self.hass.states.get(entity_id).state, expected)
 
+    async def test_corrected_bms_temperatures_preserve_registry_on_reload(self):
+        entry = await self.entry()
+        mos = self.seed(entry, "sensor", "bms2_t4", "my_mos_temperature",
+                        "bms2 power tube temperature", prefix="dg")
+        self.registry.async_update_entity(mos.entity_id, name="Battery MOS")
+        retired = self.seed(entry, "sensor", "bms2_t5", "old_probe_5",
+                            "bms2 temperature sensor 5", prefix="dg")
+        user_disabled = self.seed(entry, "sensor", "bms1_t5", "disabled_probe_5",
+                                  "bms1 temperature sensor 5", prefix="dg",
+                                  disabled_by=entity_registry.RegistryEntryDisabler.USER)
+        await self.setup(entry)
+        for reload in (False, True):
+            if reload:
+                self.assertTrue(await self.hass.config_entries.async_reload(entry.entry_id))
+                await self.ready()
+            coordinator = self.hass.data[DOMAIN][entry.entry_id]
+            coordinator._process_message({"type": "bmsData", "bmsType": "bms2", "data": {
+                "t0": 427, "t1": 366, "t2": 353, "t3": 427, "t4": 0, "t5": 0,
+            }})
+            await self.hass.async_block_till_done()
+            for key, expected in (("t0", 36.6), ("t1", 35.3), ("t2", 0), ("t3", 0), ("t4", 42.7)):
+                entity_id = self.registered_id("sensor", f"bms2_{key}")
+                self.assertEqual(float(self.hass.states.get(entity_id).state), expected)
+            self.assertEqual(self.registered_id("sensor", "bms2_t4"), mos.entity_id)
+            self.assertEqual(self.registry.async_get(mos.entity_id).name, "Battery MOS")
+            self.assertEqual(self.registry.async_get(retired.entity_id).disabled_by,
+                             entity_registry.RegistryEntryDisabler.INTEGRATION)
+            self.assertEqual(self.registry.async_get(user_disabled.entity_id).disabled_by,
+                             entity_registry.RegistryEntryDisabler.USER)
+
     async def test_existing_configured_prefix_removes_device_id_from_cell_id(self):
         entry = await self.entry(prefix="dg")
         legacy = self.seed(

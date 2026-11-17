@@ -26,6 +26,7 @@ from .const import (
     BMS_CELL_DEF,
     BMS_NATIVE_KEYS,
     BMS_FIELDS,
+    BMS_TEMPERATURE_SOURCES,
     BMS_MAC_TEXT_DEF,
     BMS_MAX_CELLS,
     BMS_SLOTS,
@@ -84,9 +85,7 @@ async def async_setup_entry(
     entities.append(SolarSensorEntity(coordinator, "wifi_signal", entry, spec=wifi_spec))
     for slot in (BMS_SLOTS if has_bms(entry) else ()):
         for key in BMS_FIELDS:
-            if not bms_temperature_enabled(entry, slot, key):
-                continue
-            if is_mq_profile(entry) and key == "t5":
+            if key == "t5":
                 continue  # The reference has four probes plus MOSFET temperature.
             entities.append(BmsScalarSensor(coordinator, slot, key, entry))
         entities.append(BmsMacSensor(coordinator, slot, entry))
@@ -267,6 +266,10 @@ class BmsScalarSensor(_SolarSensorBase):
                 native = BMS_NATIVE_KEYS[self._field]
                 value = self._coordinator.data.get(f"bms{self._slot}_native_{native}")
                 return round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+            if self._field in BMS_TEMPERATURE_SOURCES:
+                source = BMS_TEMPERATURE_SOURCES[self._field]
+                value = self._coordinator.data.get(f"bms{self._slot}_{source}")
+                return round(float(value) * self._scale, self._precision) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
             return super().native_value
         power_key = f"bms{self._slot}_native_power" if is_mq_profile(self._entry) else f"bms{self._slot}_p"
         power = self._coordinator.data.get(power_key)

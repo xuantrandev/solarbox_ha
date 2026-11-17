@@ -9,6 +9,7 @@ field first arrives over the WebSocket. Offline MQ numeric sensors report zero.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
@@ -51,6 +52,20 @@ from .coordinator import SolarProjectCoordinator
 from .entity import SolarEntityNaming, entity_unique_id
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _cloud_capacity(data: dict[str, Any], slot: str, *, remaining: bool = False) -> float | None:
+    """Decode webapp capacity (mAh), optionally applying its clamped SOC."""
+    capacity = data.get(f"{slot}_cap")
+    if isinstance(capacity, bool) or not isinstance(capacity, (int, float)) or not math.isfinite(capacity) or capacity < 0:
+        return None
+    capacity /= 1000
+    if remaining:
+        soc = data.get(f"{slot}_soc")
+        if isinstance(soc, bool) or not isinstance(soc, (int, float)) or not math.isfinite(soc):
+            return None
+        capacity *= max(0, min(100, soc)) / 100
+    return round(capacity, 3)
 
 
 async def async_setup_entry(
@@ -217,6 +232,8 @@ class SolarSensorEntity(_SolarSensorBase):
         if is_pip_profile(self._entry) and self._key == "pgr" and self._coordinator.data.get("pgr_valid") != 1:
             return None
         if self._key != "pv_power":
+            if is_mq_profile(self._entry) and self._key.endswith("_native_design_capacity") and self._key not in self._coordinator.data:
+                return _cloud_capacity(self._coordinator.data, self._key.split("_", 1)[0])
             return super().native_value
         powers = [
             value
@@ -264,7 +281,10 @@ class BmsScalarSensor(_SolarSensorBase):
         if self._field not in ("charging_power", "discharging_power"):
             if is_mq_profile(self._entry) and self._field in BMS_NATIVE_KEYS:
                 native = BMS_NATIVE_KEYS[self._field]
-                value = self._coordinator.data.get(f"bms{self._slot}_native_{native}")
+                native_key = f"bms{self._slot}_native_{native}"
+                if self._field == "cap" and native_key not in self._coordinator.data:
+                    return _cloud_capacity(self._coordinator.data, f"bms{self._slot}", remaining=True)
+                value = self._coordinator.data.get(native_key)
                 return round(float(value), 3) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
             if self._field in BMS_TEMPERATURE_SOURCES:
                 source = BMS_TEMPERATURE_SOURCES[self._field]

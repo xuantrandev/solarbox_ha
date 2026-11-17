@@ -37,7 +37,7 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
             for payload in [
                 {"type": "deviceStatus", "deviceId": ID, "status": "online"},
                 {"type": "ivtdata", "data": {"vbat": 52.5, "pdc1": 120}},
-                {"type": "bmsData", "bmsType": "bms1", "data": {"vcells": [3279, 3280]}},
+                {"type": "bmsData", "bmsType": "bms1", "data": {"vcells": [3279, 3280], "t0": 382, "t1": 255, "t2": -35, "t3": 999, "t4": 888, "t5": 777}},
                 {"type": "inverterSettingsCatalog", "deviceId": ID, "version": 1, "settings": CATALOG},
                 {"type": "inverterSettingsState", "deviceId": ID, "version": 1,
                  "available": True, "values": VALUES},
@@ -148,6 +148,43 @@ class EntityNamingTest(unittest.IsolatedAsyncioTestCase):
         await self.ready()
         self.assertEqual(len(self.registry.entities), count)
         self.assertEqual(self.registered_id("sensor", "bms1_vcells_2"), cell.entity_id)
+
+    async def test_jk_layout_reload_preserves_registry_and_user_choices(self):
+        entry = await self.entry()
+        await self.setup(entry)
+        probe_id = self.registered_id("sensor", "bms1_t0")
+        extra_id = self.registered_id("sensor", "bms1_t2")
+        user_id = self.registered_id("sensor", "bms1_t3")
+        extra_record = self.registry.async_get(extra_id)
+        self.registry.async_update_entity(probe_id, new_entity_id="sensor.my_battery_probe", name="My probe")
+        self.registry.async_update_entity(user_id, disabled_by=entity_registry.RegistryEntryDisabler.USER)
+        count = len(self.registry.entities)
+        for layout in ("jk_two_probe", "existing", "jk_two_probe"):
+            self.hass.config_entries.async_update_entry(entry, data={**entry.data, "bms1_temperature_layout": layout})
+            self.assertTrue(await self.hass.config_entries.async_reload(entry.entry_id))
+            await self.ready()
+            async with asyncio.timeout(10):
+                while (not self.hass.data[DOMAIN][entry.entry_id].online
+                       or self.hass.states.get("sensor.my_battery_probe").state in ("unavailable", "unknown")):
+                    await asyncio.sleep(.02)
+            self.assertEqual(len(self.registry.entities), count)
+            self.assertEqual(self.registered_id("sensor", "bms1_t0"), "sensor.my_battery_probe")
+            self.assertEqual(self.registry.async_get("sensor.my_battery_probe").name, "My probe")
+            self.assertEqual(self.registry.async_get(extra_id).id, extra_record.id)
+            self.assertEqual(self.registry.async_get(user_id).disabled_by, entity_registry.RegistryEntryDisabler.USER)
+            self.assertIsNone(self.registry.async_get(self.registered_id("sensor", "bms2_t2")).disabled_by)
+            if layout == "jk_two_probe":
+                self.assertEqual(float(self.hass.states.get("sensor.my_battery_probe").state), 25.5)
+                self.assertEqual(float(self.hass.states.get(self.registered_id("sensor", "bms1_t1")).state), -3.5)
+                self.assertEqual(float(self.hass.states.get(self.registered_id("sensor", "bms1_t4")).state), 38.2)
+                for field in ("t2", "t5"):
+                    entity_id = self.registered_id("sensor", f"bms1_{field}")
+                    self.assertEqual(self.registry.async_get(entity_id).disabled_by, entity_registry.RegistryEntryDisabler.INTEGRATION)
+                    self.assertIsNone(self.hass.states.get(entity_id))
+            else:
+                self.assertEqual(float(self.hass.states.get("sensor.my_battery_probe").state), 38.2)
+                self.assertIsNone(self.registry.async_get(extra_id).disabled_by)
+                self.assertIsNotNone(self.hass.states.get(extra_id))
 
     async def test_empty_prefix_uses_device_id(self):
         entry = await self.entry(prefix=None)

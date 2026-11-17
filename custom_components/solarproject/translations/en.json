@@ -25,12 +25,15 @@
     "step": {
       "init": {
         "title": "solarbox.uk options",
-        "description": "Edit the connection, sensor profile, device name and entity prefix. Profile changes preserve existing entity history.",
+        "description": "Edit the connection, sensor profile, device name and entity prefix. Profile changes preserve existing entity history. Temperature layouts apply only to Inverter + BMS. Select JK — two probes + MOSFET for each matching battery; this is a manual selection.",
         "data": {
           "server": "Server URL",
           "name": "Device name",
           "sensor_prefix": "Sensor prefix (optional)",
-          "sensor_profile": "Sensor profile"
+          "sensor_profile": "Sensor profile",
+          "bms1_temperature_layout": "BMS 1 temperature layout",
+          "bms2_temperature_layout": "BMS 2 temperature layout",
+          "bms3_temperature_layout": "BMS 3 temperature layout"
         }
       }
     }
@@ -42,6 +45,12 @@
         "mq_bms": "MQ + BMS (home_mq2ha.yaml)",
         "mq_only": "MQ only (home_mq.yaml)",
         "pip_only": "PIP inverter only (home_pip.yaml)"
+      }
+    },
+    "bms_temperature_layout": {
+      "options": {
+        "existing": "Existing layout",
+        "jk_two_probe": "JK — two probes + MOSFET"
       }
     }
   }

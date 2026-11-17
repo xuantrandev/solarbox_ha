@@ -25,12 +25,15 @@
     "step": {
       "init": {
         "title": "Tùy chọn solarbox.uk",
-        "description": "Chỉnh sửa kết nối, bộ cảm biến, tên thiết bị và tiền tố cảm biến. Đổi bộ cảm biến sẽ giữ lại lịch sử thực thể.",
+        "description": "Chỉnh sửa kết nối, bộ cảm biến, tên thiết bị và tiền tố cảm biến. Đổi bộ cảm biến sẽ giữ lại lịch sử thực thể. Bố trí cảm biến nhiệt chỉ áp dụng cho Inverter + BMS. Chọn JK — hai đầu dò + MOSFET cho từng pin phù hợp; cần chọn thủ công.",
         "data": {
           "server": "URL máy chủ",
           "name": "Tên thiết bị",
           "sensor_prefix": "Tiền tố cảm biến (tùy chọn)",
-          "sensor_profile": "Bộ cảm biến"
+          "sensor_profile": "Bộ cảm biến",
+          "bms1_temperature_layout": "Bố trí cảm biến nhiệt BMS 1",
+          "bms2_temperature_layout": "Bố trí cảm biến nhiệt BMS 2",
+          "bms3_temperature_layout": "Bố trí cảm biến nhiệt BMS 3"
         }
       }
     }
@@ -42,6 +45,12 @@
         "mq_bms": "MQ + BMS (home_mq2ha.yaml)",
         "mq_only": "Chỉ MQ (home_mq.yaml)",
         "pip_only": "Biến tần PIP không BMS (home_pip.yaml)"
+      }
+    },
+    "bms_temperature_layout": {
+      "options": {
+        "existing": "Bố trí hiện tại",
+        "jk_two_probe": "JK — hai đầu dò + MOSFET"
       }
     }
   }

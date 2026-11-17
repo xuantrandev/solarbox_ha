@@ -20,6 +20,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import get_coordinator
 from .const import (
+    JK_TWO_PROBE_SOURCES,
+    is_jk_two_probe,
+    bms_temperature_enabled,
     BMS_CELL_DEF,
     BMS_NATIVE_KEYS,
     BMS_FIELDS,
@@ -254,6 +257,10 @@ class BmsScalarSensor(_SolarSensorBase):
     def native_value(self) -> float | None:
         if self._offline_zero:
             return 0
+        if is_jk_two_probe(self._entry, self._slot) and self._field.startswith("t"):
+            source = JK_TWO_PROBE_SOURCES.get(self._field)
+            value = self._coordinator.data.get(f"bms{self._slot}_{source}") if source else None
+            return round(float(value) * self._scale, self._precision) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
         if self._field not in ("charging_power", "discharging_power"):
             if is_mq_profile(self._entry) and self._field in BMS_NATIVE_KEYS:
                 native = BMS_NATIVE_KEYS[self._field]

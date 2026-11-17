@@ -24,6 +24,30 @@ PROFILE_MQ_ONLY = "mq_only"
 PROFILE_PIP = "pip_only"
 DEFAULT_SENSOR_PROFILE = PROFILE_INVERTER
 
+TEMPERATURE_LAYOUT_EXISTING = "existing"
+TEMPERATURE_LAYOUT_JK_TWO_PROBE = "jk_two_probe"
+# Entity keys remain stable; only the source field changes for this layout.
+JK_TWO_PROBE_SOURCES = {"t0": "t1", "t1": "t2", "t4": "t0"}
+
+
+def temperature_layout_key(slot: int) -> str:
+    return f"bms{slot}_temperature_layout"
+
+
+def is_jk_two_probe(entry, slot: int) -> bool:
+    return (
+        entry.data.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE) == PROFILE_INVERTER
+        and entry.data.get(temperature_layout_key(slot)) == TEMPERATURE_LAYOUT_JK_TWO_PROBE
+    )
+
+
+def bms_temperature_enabled(entry, slot: int, field: str) -> bool:
+    return not (
+        is_jk_two_probe(entry, slot)
+        and field in {"t2", "t3", "t5"}
+    )
+
+
 DEFAULT_SERVER = "https://ivbms.solarbox.uk"
 DEFAULT_FAST_DATA_INTERVAL = 5  # seconds
 

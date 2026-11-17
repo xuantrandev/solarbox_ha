@@ -206,3 +206,25 @@ Existing profiles and their defaults are preserved. Switching to MQ only disable
 existing BMS entities and retains their history. Switching back restores entities
 disabled by the integration and preserves user-disabled choices. Shared MQ and
 dongle entities keep their identities across MQ profile changes.
+
+
+## JK battery with two temperature probes
+
+Version `1.2.3` adds a manual temperature layout for each BMS slot. In
+**Settings → Devices & services → solarbox.uk devices → Configure**, keep
+**Inverter + BMS (home_senble.yaml)** selected and set the matching battery's
+**temperature layout** to **JK — two probes + MOSFET**. Save to reload.
+
+This shows probes 1 and 2 and a separate power-tube/MOSFET temperature. Extra
+probe entities 3–5 are disabled by the integration; their registry records,
+history, custom names and IDs are retained. Returning to **Existing layout**
+restores entities disabled by the integration while preserving user-disabled
+choices. Other battery slots keep their own layout. Existing installations
+retain their previous layout until explicitly configured.
+
+The JK layout reads probe 1 from `t1`, probe 2 from `t2`, and MOSFET from `t0`,
+converting tenths of a degree to °C once. It applies only to the inverter + BMS
+profile; MQ continues using native sensor readings. No firmware update is needed.
+Sensor presence is not detected automatically: select this layout only for a
+matching JK battery and compare readings with its app. Missing readings remain
+unknown.

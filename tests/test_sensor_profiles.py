@@ -317,6 +317,50 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entities["mq_pdc1"].native_value, 800.24)
         self.assertEqual(entities["mq_pbat"].native_value, 750.8)
 
+    async def test_mq_cloud_capacity_matches_webapp(self):
+        entities, _ = await self.entities(PROFILE_MQ)
+        self.coordinator._set_online(True)
+        total = entities["bms1_native_design_capacity"]
+        remaining = entities["bms1_cap"]
+        self.assertIsNone(total.native_value)
+        self.assertIsNone(remaining.native_value)
+        self.coordinator._process_message({"type": "bmsData", "bmsType": "bms1", "data": {
+            "cap": 280500, "soc": 75, "soh": 90,
+        }})
+        self.assertEqual(total.native_value, 280.5)
+        self.assertEqual(remaining.native_value, 210.375)
+        # Slots remain independent, and remaining capacity does not apply SOH.
+        self.assertIsNone(entities["bms2_cap"].native_value)
+        for soc, expected in ((0, 0), (100, 280.5), (-1, 0), (101, 280.5)):
+            self.coordinator.data["bms1_soc"] = soc
+            self.assertEqual(remaining.native_value, expected)
+        for invalid in (None, True, "75", float("nan"), float("inf")):
+            self.coordinator.data["bms1_soc"] = invalid
+            self.assertIsNone(remaining.native_value)
+        self.coordinator.data["bms1_soc"] = 75
+        for invalid in (None, True, "280500", -1, float("nan"), float("inf")):
+            self.coordinator.data["bms1_cap"] = invalid
+            self.assertIsNone(total.native_value)
+            self.assertIsNone(remaining.native_value)
+        self.coordinator.data["bms1_cap"] = 0
+        self.assertEqual(total.native_value, 0)
+        self.assertEqual(remaining.native_value, 0)
+        self.coordinator.data["bms1_cap"] = 280500
+        self.coordinator._process_message({"type": "homeSensorData", "deviceId": "dg-aabbcc", "data": {
+            "bms1_native_design_capacity": 300, "bms1_native_capacity_remaining": 200,
+        }})
+        self.assertEqual(total.native_value, 300)
+        self.assertEqual(remaining.native_value, 200)
+        # Explicit native unknowns must not be replaced by cached cloud values.
+        self.coordinator._process_message({"type": "homeSensorData", "deviceId": "dg-aabbcc", "data": {
+            "bms1_native_design_capacity": None, "bms1_native_capacity_remaining": None,
+        }})
+        self.assertIsNone(total.native_value)
+        self.assertIsNone(remaining.native_value)
+        self.coordinator._set_online(False)
+        self.assertEqual(total.native_value, 0)
+        self.assertEqual(remaining.native_value, 0)
+
     async def test_native_values_cells_and_foreign_device_rejection(self):
         entities, binary = await self.entities(PROFILE_MQ)
         self.coordinator._process_message({"type": "deviceStatus", "status": "online"})

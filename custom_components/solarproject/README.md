@@ -185,10 +185,12 @@ These tests exercise profile defaults, all three entity sets, names against the
 reference YAML, dynamic cells, units/signs/text, profile persistence, registry
 preservation and control exclusion. Actual radio/WS behavior requires hardware.
 
-The MQ profile takes BMS capacity remaining and temperatures directly from the
-native backend outputs. For example, JK cloud `cap` represents design capacity,
-and its temperature ordering differs from native sensor indices. Local native
-readings avoid applying those cloud conventions to reference sensor names.
+The MQ profile prefers native BMS capacity readings. When a native capacity key
+has never arrived, total battery capacity falls back to cloud `cap / 1000` Ah,
+and capacity remaining uses `cap / 1000 * SOC / 100`, matching the webapp (SOC
+clamped to 0–100%). SOH does not modify these two readings. Missing or invalid
+inputs stay unknown; an explicit native unknown remains unknown. Native
+temperatures retain their own ordering, which differs from cloud indices.
 Local MQ powers retain fractional watts; cloud integer power is the fallback.
 
 ## MQ without BMS

@@ -27,6 +27,10 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    BMS_SLOTS,
+    TEMPERATURE_LAYOUT_EXISTING,
+    TEMPERATURE_LAYOUT_JK_TWO_PROBE,
+    temperature_layout_key,
     CONF_DEVICE_ID,
     CONF_SENSOR_PROFILE,
     DEFAULT_SENSOR_PROFILE,
@@ -154,7 +158,7 @@ class SolarProjectConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class SolarProjectOptionsFlow(OptionsFlow):
-    """Options flow: edit connection, profile, device name and sensor prefix."""
+    """Options flow: edit connection, profile, naming and per-BMS temperature layouts."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -166,6 +170,9 @@ class SolarProjectOptionsFlow(OptionsFlow):
                 CONF_SERVER: server,
                 CONF_SENSOR_PROFILE: user_input.get(CONF_SENSOR_PROFILE, DEFAULT_SENSOR_PROFILE),
             }
+            for slot in BMS_SLOTS:
+                key = temperature_layout_key(slot)
+                data[key] = user_input.get(key, data.get(key, TEMPERATURE_LAYOUT_EXISTING))
             if user_input.get(CONF_NAME):
                 data[CONF_NAME] = user_input[CONF_NAME].strip()
             else:
@@ -198,4 +205,14 @@ class SolarProjectOptionsFlow(OptionsFlow):
                 ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
             }
         )
+        schema = schema.extend({
+            vol.Required(
+                temperature_layout_key(slot),
+                default=current.get(temperature_layout_key(slot), TEMPERATURE_LAYOUT_EXISTING),
+            ): SelectSelector(SelectSelectorConfig(
+                options=[TEMPERATURE_LAYOUT_EXISTING, TEMPERATURE_LAYOUT_JK_TWO_PROBE],
+                translation_key="bms_temperature_layout",
+            ))
+            for slot in BMS_SLOTS
+        })
         return self.async_show_form(step_id="init", data_schema=schema)

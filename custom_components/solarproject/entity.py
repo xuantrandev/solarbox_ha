@@ -17,6 +17,7 @@ from .const import (
     BIN_FIX_LUX_SERVER,
     BIN_LUX_SERVER,
     BIN_ONLINE,
+    bms_temperature_enabled,
     BMS_CELL_DEF,
     BMS_FIELDS,
     BMS_MAC_TEXT_DEF,
@@ -230,7 +231,21 @@ def async_apply_sensor_profile(hass, entry, coordinator):
             enabled = True
         else:
             continue
+        temperature_enabled = True
+        if registered.domain == "sensor":
+            for slot in BMS_SLOTS:
+                prefix = f"bms{slot}_"
+                if key.startswith(prefix):
+                    temperature_enabled = bms_temperature_enabled(entry, slot, key[len(prefix):])
+                    enabled = enabled and temperature_enabled
+                    break
         if not enabled and registered.disabled_by is None:
             registry.async_update_entity(registered.entity_id, disabled_by=entity_registry.RegistryEntryDisabler.INTEGRATION)
         elif enabled and registered.disabled_by == entity_registry.RegistryEntryDisabler.INTEGRATION:
             registry.async_update_entity(registered.entity_id, disabled_by=None)
+        # Unloading creates restored placeholders. Suppressed probes have no
+        # entity on the next setup to replace them, so clear only those states.
+        if not temperature_enabled:
+            state = hass.states.get(registered.entity_id)
+            if state is not None and state.attributes.get("restored"):
+                hass.states.async_remove(registered.entity_id)

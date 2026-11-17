@@ -44,6 +44,59 @@ class SensorProfiles(unittest.IsolatedAsyncioTestCase):
             await binary_sensor.async_setup_entry(self.hass, self.entry, binary.extend)
         return {e._key: e for e in entities}, {e._key: e for e in binary}
 
+    async def test_jk_two_probe_mapping_and_slot_isolation(self):
+        self.entry.data["bms1_temperature_layout"] = "jk_two_probe"
+        self.coordinator._process_message({"type": "bmsData", "bmsType": "bms1", "data": {
+            "t0": 382, "t1": 255, "t2": -35, "t3": 999, "t4": 888, "t5": 777,
+        }})
+        entities, _ = await self.entities()
+        for field, expected in {"t0": 25.5, "t1": -3.5, "t4": 38.2}.items():
+            self.assertEqual(entities[f"bms1_{field}"].native_value, expected)
+        for field in ("t2", "t3", "t5"):
+            self.assertNotIn(f"bms1_{field}", entities)
+            self.assertIn(f"bms2_{field}", entities)
+        for value, expected in ((0, 0), (None, None), (True, None)):
+            self.coordinator.data["bms1_t1"] = value
+            self.assertEqual(entities["bms1_t0"].native_value, expected)
+        del self.coordinator.data["bms1_t1"]
+        self.assertIsNone(entities["bms1_t0"].native_value)
+        restored, _ = await self.entities()
+        self.assertEqual(restored["bms1_t0"].unique_id, entities["bms1_t0"].unique_id)
+        self.entry.data.pop("bms1_temperature_layout")
+        legacy, _ = await self.entities()
+        self.assertEqual(legacy["bms1_t0"].native_value, 38.2)
+        self.assertIn("bms1_t5", legacy)
+        self.entry.data["bms1_temperature_layout"] = "jk_two_probe"
+        mq, _ = await self.entities(PROFILE_MQ)
+        self.coordinator.data["bms1_native_temperature_sensor_1"] = 27.2
+        self.assertEqual(mq["bms1_t0"].native_value, 27.2)
+        self.assertIn("bms1_t2", mq)
+        self.assertNotIn("bms1_t5", mq)
+
+    async def test_temperature_layout_options_defaults_persistence_and_reload(self):
+        options = config_flow.SolarProjectOptionsFlow()
+        options.hass = MagicMock()
+        options.hass.config_entries.async_reload = AsyncMock()
+        with patch.object(config_flow.SolarProjectOptionsFlow, "config_entry", new_callable=PropertyMock, return_value=self.entry):
+            form = await options.async_step_init()
+            values = form["data_schema"]({"server": "http://dongle:8001"})
+            for slot in BMS_SLOTS:
+                self.assertEqual(values[f"bms{slot}_temperature_layout"], "existing")
+            values["bms1_temperature_layout"] = "jk_two_probe"
+            await options.async_step_init(values)
+            saved = options.hass.config_entries.async_update_entry.call_args.kwargs["data"]
+            self.assertEqual(saved["bms1_temperature_layout"], "jk_two_probe")
+            self.assertEqual(saved["bms2_temperature_layout"], "existing")
+            self.entry.data = saved
+            form = await options.async_step_init()
+            self.assertEqual(form["data_schema"]({"server": "http://dongle:8001"})["bms1_temperature_layout"], "jk_two_probe")
+            await options.async_step_init({"server": "http://dongle:8001", CONF_SENSOR_PROFILE: PROFILE_MQ})
+            self.assertEqual(options.hass.config_entries.async_update_entry.call_args.kwargs["data"]["bms1_temperature_layout"], "jk_two_probe")
+            import voluptuous as vol
+            with self.assertRaises(vol.Invalid):
+                form["data_schema"]({"server": "http://dongle:8001", "bms1_temperature_layout": "invalid"})
+        self.assertEqual(options.hass.config_entries.async_reload.await_count, 2)
+
     async def test_existing_entry_defaults_and_profile_entity_sets(self):
         entities, binary = await self.entities()
         self.assertFalse(is_mq_profile(self.entry))
